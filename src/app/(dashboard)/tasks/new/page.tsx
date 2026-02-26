@@ -124,6 +124,7 @@ export default function NewTaskPage() {
                     responsible_id: data.responsible_id || null,
                     due_date: data.due_date || null,
                     serial_number: '',
+                    status: data.responsible_id ? 'open' : 'unassigned',
                 })
                 .select('id')
                 .single();
@@ -156,11 +157,15 @@ export default function NewTaskPage() {
 
             // Send notification to assigned responsible
             if (data.responsible_id) {
-                fetch('/api/notify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ taskId: task.id, type: 'task_assigned' }),
-                }).catch(console.error);
+                try {
+                    await fetch('/api/notify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ taskId: task.id, type: 'task_assigned' }),
+                    });
+                } catch (e) {
+                    console.error('Bildirim gönderilemedi:', e);
+                }
             }
 
             router.push(`/tasks/${task.id}`);
