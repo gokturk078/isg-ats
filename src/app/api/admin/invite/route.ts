@@ -3,96 +3,96 @@ import { createClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email/mailer';
 
 function generateTempPassword(): string {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$';
-    let password = '';
-    for (let i = 0; i < 12; i++) {
-        password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$';
+  let password = '';
+  for (let i = 0; i < 12; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
 }
 
 export async function POST(request: NextRequest) {
-    try {
-        // Service role key kontrolü
-        if (!process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY.includes('SERVICE_ROLE_KEY')) {
-            console.error('SUPABASE_SERVICE_ROLE_KEY yapılandırılmamış!');
-            return NextResponse.json(
-                { error: 'Sunucu yapılandırma hatası. SUPABASE_SERVICE_ROLE_KEY ayarlanmamış.' },
-                { status: 500 }
-            );
-        }
+  try {
+    // Service role key kontrolü
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY.includes('SERVICE_ROLE_KEY')) {
+      console.error('SUPABASE_SERVICE_ROLE_KEY yapılandırılmamış!');
+      return NextResponse.json(
+        { error: 'Sunucu yapılandırma hatası. SUPABASE_SERVICE_ROLE_KEY ayarlanmamış.' },
+        { status: 500 }
+      );
+    }
 
-        const supabase = await createClient();
+    const supabase = await createClient();
 
-        // Verify caller is admin
-        const {
-            data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) {
-            return NextResponse.json({ error: 'Yetkilendirme hatası. Lütfen tekrar giriş yapın.' }, { status: 401 });
-        }
+    // Verify caller is admin
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Yetkilendirme hatası. Lütfen tekrar giriş yapın.' }, { status: 401 });
+    }
 
-        const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', user.id)
-            .single();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
 
-        if (profile?.role !== 'admin') {
-            return NextResponse.json({ error: 'Bu işlem için yönetici yetkisi gereklidir.' }, { status: 403 });
-        }
+    if (profile?.role !== 'admin') {
+      return NextResponse.json({ error: 'Bu işlem için yönetici yetkisi gereklidir.' }, { status: 403 });
+    }
 
-        const body = await request.json();
-        const { email, full_name, role } = body as {
-            email: string;
-            full_name: string;
-            role: 'admin' | 'inspector' | 'responsible';
-        };
+    const body = await request.json();
+    const { email, full_name, role } = body as {
+      email: string;
+      full_name: string;
+      role: 'admin' | 'inspector' | 'responsible';
+    };
 
-        if (!email || !full_name || !role) {
-            return NextResponse.json({ error: 'Email, ad soyad ve rol alanları zorunludur.' }, { status: 400 });
-        }
+    if (!email || !full_name || !role) {
+      return NextResponse.json({ error: 'Email, ad soyad ve rol alanları zorunludur.' }, { status: 400 });
+    }
 
-        if (!['admin', 'inspector', 'responsible'].includes(role)) {
-            return NextResponse.json({ error: 'Geçersiz rol.' }, { status: 400 });
-        }
+    if (!['admin', 'inspector', 'responsible'].includes(role)) {
+      return NextResponse.json({ error: 'Geçersiz rol.' }, { status: 400 });
+    }
 
-        // Service role client for admin operations
-        const { createServiceClient } = await import('@/lib/supabase/server');
-        const serviceClient = await createServiceClient();
+    // Service role client for admin operations
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    const serviceClient = await createServiceClient();
 
-        // Geçici şifre oluştur
-        const tempPassword = generateTempPassword();
+    // Geçici şifre oluştur
+    const tempPassword = generateTempPassword();
 
-        // Kullanıcıyı Supabase'de oluştur (email göndermeden)
-        const { data: newUser, error: createError } = await serviceClient.auth.admin.createUser({
-            email,
-            password: tempPassword,
-            email_confirm: true, // Email'i otomatik doğrula
-            user_metadata: { full_name, role },
-        });
+    // Kullanıcıyı Supabase'de oluştur (email göndermeden)
+    const { data: newUser, error: createError } = await serviceClient.auth.admin.createUser({
+      email,
+      password: tempPassword,
+      email_confirm: true, // Email'i otomatik doğrula
+      user_metadata: { full_name, role },
+    });
 
-        if (createError) {
-            console.error('Kullanıcı oluşturma hatası:', createError.message);
-            if (createError.message.includes('already been registered') || createError.message.includes('already exists')) {
-                return NextResponse.json({ error: 'Bu email adresi zaten kayıtlı.' }, { status: 400 });
-            }
-            return NextResponse.json({ error: createError.message }, { status: 400 });
-        }
+    if (createError) {
+      console.error('Kullanıcı oluşturma hatası:', createError.message);
+      if (createError.message.includes('already been registered') || createError.message.includes('already exists')) {
+        return NextResponse.json({ error: 'Bu email adresi zaten kayıtlı.' }, { status: 400 });
+      }
+      return NextResponse.json({ error: createError.message }, { status: 400 });
+    }
 
-        // Profile'ı güncelle
-        if (newUser?.user) {
-            await serviceClient.from('profiles').update({
-                full_name,
-                role,
-            }).eq('id', newUser.user.id);
-        }
+    // Profile'ı güncelle
+    if (newUser?.user) {
+      await serviceClient.from('profiles').update({
+        full_name,
+        role,
+      }).eq('id', newUser.user.id);
+    }
 
-        // Davet emaili gönder (kendi Gmail'imizden)
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://isg-ats.vercel.app';
-        const roleLabel = { admin: 'Yönetici', inspector: 'Denetçi', responsible: 'Görevli' }[role];
+    // Davet emaili gönder (kendi Gmail'imizden)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://isg-ats.vercel.app';
+    const roleLabel = { admin: 'Yönetici', inspector: 'Denetçi', responsible: 'Görevli' }[role];
 
-        const html = `<!DOCTYPE html>
+    const html = `<!DOCTYPE html>
 <html lang="tr">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
 <body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;">
@@ -153,29 +153,23 @@ export async function POST(request: NextRequest) {
 </body>
 </html>`;
 
-        const emailResult = await sendEmail({
-            to: email,
-            subject: `🔐 İSG-ATS Hesabınız Oluşturuldu — Giriş Bilgileriniz`,
-            html,
-        });
+    const emailResult = await sendEmail({
+      to: email,
+      subject: `🔐 İSG-ATS Hesabınız Oluşturuldu — Giriş Bilgileriniz`,
+      html,
+    });
 
-        if (!emailResult.success) {
-            console.error('Davet emaili gönderilemedi:', emailResult.error);
-            // Kullanıcı Supabase'de oluşturuldu ama email gönderilemedi
-            return NextResponse.json({
-                success: true,
-                warning: 'Kullanıcı oluşturuldu ancak email gönderilemedi. Geçici şifre: ' + tempPassword,
-                tempPassword,
-                user: newUser?.user,
-            });
-        }
-
-        return NextResponse.json({ success: true, user: newUser?.user });
-    } catch (error) {
-        console.error('Davet API hatası:', error);
-        return NextResponse.json(
-            { error: 'Beklenmeyen bir sunucu hatası oluştu. Lütfen tekrar deneyin.' },
-            { status: 500 }
-        );
-    }
+    return NextResponse.json({
+      success: true,
+      emailSent: emailResult.success,
+      tempPassword, // Her zaman döndür — admin gerekirse manuel iletebilsin
+      user: newUser?.user,
+    });
+  } catch (error) {
+    console.error('Davet API hatası:', error);
+    return NextResponse.json(
+      { error: 'Beklenmeyen bir sunucu hatası oluştu. Lütfen tekrar deneyin.' },
+      { status: 500 }
+    );
+  }
 }

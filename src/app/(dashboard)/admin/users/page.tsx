@@ -62,14 +62,28 @@ export default function UsersPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: inviteEmail, full_name: inviteName, role: inviteRole }),
             });
+            const data = await response.json();
             if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.error || 'Davet gönderilemedi');
+                throw new Error(data.error || 'Davet gönderilemedi');
             }
+            return data as { success: boolean; emailSent: boolean; tempPassword: string };
         },
-        onSuccess: () => {
+        onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-            toast.success('Kullanıcı davet edildi');
+            if (data.emailSent) {
+                toast.success('Kullanıcı oluşturuldu ve davet emaili gönderildi.');
+            } else {
+                toast('Kullanıcı oluşturuldu ancak email gönderilemedi.', {
+                    description: `Geçici şifre: ${data.tempPassword}`,
+                    duration: 30000,
+                    action: {
+                        label: 'Kopyala',
+                        onClick: () => navigator.clipboard.writeText(data.tempPassword),
+                    },
+                });
+            }
+            // Her durumda geçici şifreyi logla (admin görebilsin)
+            console.info(`[Davet] ${inviteEmail} → Geçici şifre: ${data.tempPassword}`);
             setDialogOpen(false);
             setInviteEmail('');
             setInviteName('');
