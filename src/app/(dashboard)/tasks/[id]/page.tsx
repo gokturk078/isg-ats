@@ -500,16 +500,35 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                 onConfirm={() => updateStatus.mutate({ status: 'closed' })}
                 loading={updateStatus.isPending}
             />
-            <ConfirmDialog
-                open={confirmAction?.type === 'reject'}
-                onOpenChange={() => setConfirmAction(null)}
-                title={confirmAction?.title ?? ''}
-                description={confirmAction?.desc ?? ''}
-                onConfirm={() => updateStatus.mutate({ status: 'rejected', extra: { rejection_reason: rejectReason } })}
-                loading={updateStatus.isPending}
-                variant="destructive"
-                confirmText="Reddet"
-            />
+            <Dialog open={confirmAction?.type === 'reject'} onOpenChange={(open) => { if (!open) { setConfirmAction(null); setRejectReason(''); } }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Görevi Reddet</DialogTitle>
+                        <DialogDescription>Bu görev reddedilecek. Lütfen red nedenini yazınız.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2">
+                        <Label>Red Nedeni *</Label>
+                        <Textarea
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value)}
+                            placeholder="Red nedenini açıklayınız..."
+                            rows={3}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => { setConfirmAction(null); setRejectReason(''); }}>
+                            İptal
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            disabled={!rejectReason.trim() || updateStatus.isPending}
+                            onClick={() => updateStatus.mutate({ status: 'rejected', extra: { rejection_reason: rejectReason } })}
+                        >
+                            {updateStatus.isPending ? 'İşleniyor...' : 'Reddet'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
