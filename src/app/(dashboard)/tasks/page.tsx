@@ -107,8 +107,8 @@ export default function TasksPage() {
             const { error } = await supabase.from('tasks').delete().eq('id', taskId);
             if (error) throw error;
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['tasks'] });
+        onSuccess: async () => {
+            await queryClient.refetchQueries({ queryKey: ['tasks'] });
             toast.success('Görev silindi');
             setDeleteTaskId(null);
         },

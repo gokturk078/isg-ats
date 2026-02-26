@@ -67,6 +67,9 @@ export default function LocationsPage() {
 
     const deleteItem = useMutation({
         mutationFn: async (id: string) => {
+            // Nullify FK references first
+            await supabase.from('tasks').update({ location_id: null }).eq('location_id', id);
+            await supabase.from('profiles').update({ location_id: null }).eq('location_id', id);
             const { error } = await supabase.from('locations').delete().eq('id', id);
             if (error) throw error;
         },
@@ -76,7 +79,7 @@ export default function LocationsPage() {
             toast.success('Lokasyon silindi');
             setDeleteTarget(null);
         },
-        onError: () => toast.error('Lokasyon silinemedi. Bağlı görevler olabilir.'),
+        onError: () => toast.error('Lokasyon silinemedi.'),
     });
 
     if (isLoading) return <LoadingSpinner text="Lokasyonlar yükleniyor..." />;
