@@ -184,7 +184,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
             setCompletionPreviews([]);
 
             // Notify admin/inspector
-            sendNotification(id, 'task_completed');
+            await sendNotification(id, 'task_completed');
         } catch (error) {
             console.error('Tamamlama hatası:', error);
             toast.error('Görev tamamlanırken hata oluştu');
@@ -340,7 +340,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                                 <p className="text-sm text-muted-foreground text-center py-4">Henüz aksiyon notu bulunmuyor.</p>
                             )}
 
-                            {canAct && !['closed', 'rejected'].includes(task.status) && (
+                            {canAct && task.status !== 'closed' && (
                                 <>
                                     <Separator />
                                     <div className="flex gap-2">
@@ -373,12 +373,12 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                         </CardHeader>
                         <CardContent className="space-y-2">
                             {/* Görevli Aksiyonları */}
-                            {(isResponsible || isAdmin) && task.status === 'open' && (
+                            {(isResponsible || isAdmin) && ['open', 'rejected'].includes(task.status) && (
                                 <Button className="w-full" onClick={() => updateStatus.mutate({ status: 'in_progress' })}>
                                     <Play className="mr-2 h-4 w-4" /> Devam Ediyorum
                                 </Button>
                             )}
-                            {(isResponsible || isAdmin) && (task.status === 'open' || task.status === 'in_progress') && (
+                            {(isResponsible || isAdmin) && ['open', 'in_progress', 'rejected'].includes(task.status) && (
                                 <Button className="w-full" variant="outline" onClick={() => setCompleteDialogOpen(true)}>
                                     <CheckCircle className="mr-2 h-4 w-4" /> Tamamlandı
                                 </Button>
@@ -397,7 +397,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                             )}
 
                             {/* Düzenle */}
-                            {(isAdmin || isInspector) && !['closed', 'rejected'].includes(task.status) && (
+                            {(isAdmin || isInspector) && task.status !== 'closed' && (
                                 <Button className="w-full" variant="outline" onClick={() => router.push(`/tasks/${id}/edit`)}>
                                     Düzenle
                                 </Button>
