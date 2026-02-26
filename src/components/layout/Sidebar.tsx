@@ -6,7 +6,6 @@ import {
     LayoutDashboard,
     ClipboardList,
     ClipboardCheck,
-    BarChart3,
     Bell,
     Users,
     MapPin,
@@ -35,7 +34,6 @@ const mainNavItems = [
     { label: 'Görevler', href: '/tasks', icon: ClipboardList, roles: ['admin', 'inspector', 'responsible'] },
     { label: 'Görevlerim', href: '/my-tasks', icon: ClipboardCheck, roles: ['responsible'] },
     { label: 'Yeni Görev', href: '/tasks/new', icon: Plus, roles: ['admin', 'inspector'] },
-    { label: 'Raporlar', href: '/reports', icon: BarChart3, roles: ['admin', 'inspector'] },
     { label: 'Bildirimler', href: '/notifications', icon: Bell, roles: ['admin', 'inspector', 'responsible'] },
 ];
 

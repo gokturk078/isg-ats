@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const { taskId, type, rejectionReason } = body as {
             taskId: string;
-            type: 'task_assigned' | 'task_completed' | 'task_rejected' | 'task_closed';
+            type: string;
             rejectionReason?: string;
         };
 
@@ -27,21 +27,23 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'taskId ve type zorunludur' }, { status: 400 });
         }
 
-        const validTypes = ['task_assigned', 'task_completed', 'task_rejected', 'task_closed'];
-        if (!validTypes.includes(type)) {
-            return NextResponse.json({ error: 'Geçersiz bildirim tipi' }, { status: 400 });
-        }
+        console.log('[Notify API] Bildirim gönderiliyor:', { taskId, type, user: profile?.full_name });
 
-        await createTaskNotification({
+        const result = await createTaskNotification({
             taskId,
-            type,
+            type: type as 'task_assigned' | 'task_completed' | 'task_closed' | 'task_created',
             actorName: profile?.full_name ?? 'Kullanıcı',
             rejectionReason,
         });
 
-        return NextResponse.json({ success: true });
+        console.log('[Notify API] Sonuç:', result);
+
+        return NextResponse.json(result);
     } catch (error) {
-        console.error('Bildirim API hatası:', error);
-        return NextResponse.json({ error: 'Bildirim gönderilemedi' }, { status: 500 });
+        console.error('[Notify API] Hata:', error);
+        return NextResponse.json(
+            { error: 'Bildirim gönderilemedi', details: String(error) },
+            { status: 500 }
+        );
     }
 }

@@ -4,9 +4,10 @@ import { sendEmail } from '@/lib/email/mailer';
 type NotificationType =
     | 'task_assigned'
     | 'task_completed'
-    | 'task_rejected'
     | 'task_closed'
-    | 'task_status_changed';
+    | 'task_overdue'
+    | 'task_reminder'
+    | 'task_created';
 
 interface NotifyOptions {
     taskId: string;
@@ -53,7 +54,7 @@ export async function createTaskNotification(options: NotifyOptions) {
         const supabase = await createServiceClient();
 
         // Fetch task with relations
-        const { data: task } = await supabase
+        const { data: task, error: fetchError } = await supabase
             .from('tasks')
             .select(`
                 id, serial_number, description, severity, status,
@@ -66,9 +67,14 @@ export async function createTaskNotification(options: NotifyOptions) {
             .eq('id', taskId)
             .single();
 
+        if (fetchError) {
+            console.error('[Bildirim] Görev fetch hatası:', fetchError.message);
+            return { success: false, error: `Görev bulunamadı: ${fetchError.message}` };
+        }
+
         if (!task) {
-            console.error('Bildirim: Görev bulunamadı:', taskId);
-            return;
+            console.error('[Bildirim] Görev bulunamadı:', taskId);
+            return { success: false, error: 'Görev bulunamadı' };
         }
 
         const taskData = task as unknown as TaskData;
@@ -78,16 +84,30 @@ export async function createTaskNotification(options: NotifyOptions) {
         // Determine notification targets and content
         const notifications = getNotificationConfig(type, taskData, actorName, rejectionReason);
 
+        if (notifications.length === 0) {
+            console.warn('[Bildirim] Gönderilecek bildirim hedefi yok:', type, taskId);
+            return { success: true, sent: 0 };
+        }
+
+        let sentCount = 0;
+
         for (const notif of notifications) {
-            // In-app notification
+            // In-app notification — use the closest valid DB enum type
+            const dbType = mapToDbType(type);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await supabase.from('notifications').insert({
+            const { error: insertError } = await supabase.from('notifications').insert({
                 user_id: notif.userId,
                 task_id: taskId,
-                type: type as string as any,
+                type: dbType as any,
                 title: notif.title,
                 message: notif.message,
             } as any);
+
+            if (insertError) {
+                console.error('[Bildirim] DB insert hatası:', insertError.message, { userId: notif.userId, type: dbType });
+            } else {
+                console.log('[Bildirim] ✅ In-app bildirim gönderildi:', notif.recipientName, dbType);
+            }
 
             // Email notification
             if (notif.email) {
@@ -101,16 +121,40 @@ export async function createTaskNotification(options: NotifyOptions) {
                     rejectionReason,
                 });
 
-                await sendEmail({
+                const emailResult = await sendEmail({
                     to: notif.email,
                     subject: `📋 ${notif.title} — #${taskData.serial_number}`,
                     html,
                 });
+
+                if (emailResult.success) {
+                    console.log('[Bildirim] ✅ Email gönderildi:', notif.email);
+                } else {
+                    console.error('[Bildirim] ❌ Email gönderilemedi:', notif.email, emailResult.error);
+                }
             }
+
+            sentCount++;
         }
+
+        return { success: true, sent: sentCount };
     } catch (error) {
-        console.error('Bildirim gönderme hatası:', error);
+        console.error('[Bildirim] Genel hata:', error);
+        return { success: false, error: String(error) };
     }
+}
+
+// Map our notification types to the DB enum values
+function mapToDbType(type: NotificationType): string {
+    const mapping: Record<string, string> = {
+        task_assigned: 'task_assigned',
+        task_completed: 'task_completed',
+        task_closed: 'task_closed',
+        task_overdue: 'task_overdue',
+        task_reminder: 'task_reminder',
+        task_created: 'task_created',
+    };
+    return mapping[type] ?? 'task_assigned';
 }
 
 function getNotificationConfig(
@@ -135,7 +179,7 @@ function getNotificationConfig(
             break;
 
         case 'task_completed':
-            // Notify admin + inspector
+            // Notify inspector
             if (task.inspector) {
                 notifications.push({
                     userId: task.inspector_id,
@@ -143,18 +187,6 @@ function getNotificationConfig(
                     recipientName: task.inspector.full_name,
                     title: 'Görev Tamamlandı',
                     message: `${actorName ?? 'Görevli'}, #${task.serial_number} numaralı görevi tamamladı. Kontrol edip kapatabilirsiniz.`,
-                });
-            }
-            break;
-
-        case 'task_rejected':
-            if (task.responsible_id && task.responsible) {
-                notifications.push({
-                    userId: task.responsible_id,
-                    email: task.responsible.email,
-                    recipientName: task.responsible.full_name,
-                    title: 'Görev Reddedildi',
-                    message: `#${task.serial_number} numaralı görev reddedildi.${rejectionReason ? ' Neden: ' + rejectionReason : ''}`,
                 });
             }
             break;
@@ -167,7 +199,7 @@ function getNotificationConfig(
                     email: task.responsible.email,
                     recipientName: task.responsible.full_name,
                     title: 'Görev Kapatıldı',
-                    message: `#${task.serial_number} numaralı görev başarıyla kapatıldı. ✅`,
+                    message: `#${task.serial_number} numaralı görev başarıyla kapatıldı.${rejectionReason ? ' Not: ' + rejectionReason : ''} ✅`,
                 });
             }
             if (task.inspector) {
@@ -177,6 +209,19 @@ function getNotificationConfig(
                     recipientName: task.inspector.full_name,
                     title: 'Görev Kapatıldı',
                     message: `#${task.serial_number} numaralı görev başarıyla kapatıldı. ✅`,
+                });
+            }
+            break;
+
+        case 'task_created':
+            // For rejected tasks being re-notified
+            if (task.responsible_id && task.responsible) {
+                notifications.push({
+                    userId: task.responsible_id,
+                    email: task.responsible.email,
+                    recipientName: task.responsible.full_name,
+                    title: 'Görev Reddedildi',
+                    message: `#${task.serial_number} numaralı görev reddedildi.${rejectionReason ? ' Neden: ' + rejectionReason : ''}`,
                 });
             }
             break;
@@ -199,9 +244,10 @@ function buildEmailHtml(opts: {
     const headerColors: Record<string, string> = {
         task_assigned: '#1d4ed8',
         task_completed: '#16a34a',
-        task_rejected: '#dc2626',
         task_closed: '#6b7280',
-        task_status_changed: '#f97316',
+        task_created: '#dc2626',
+        task_overdue: '#f97316',
+        task_reminder: '#f97316',
     };
     const headerColor = headerColors[type] ?? '#1d4ed8';
 

@@ -78,7 +78,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
             if (variables.status === 'closed') {
                 sendNotification(id, 'task_closed');
             } else if (variables.status === 'rejected') {
-                sendNotification(id, 'task_rejected', rejectReason);
+                sendNotification(id, 'task_created', rejectReason);
             }
         },
         onError: () => toast.error('Durum güncellenemedi'),

@@ -74,6 +74,17 @@ export default function TasksPage() {
     const canCreate = profile?.role === 'admin' || profile?.role === 'inspector';
     const totalPages = Math.ceil((tasksData?.count ?? 0) / pageSize);
 
+    // Stats query for counters
+    const { data: allTasksData } = useTasks({ pageSize: 1000 });
+    const allTasks = allTasksData?.tasks ?? [];
+    const statusCounts = {
+        unassigned: allTasks.filter((t) => t.status === 'unassigned').length,
+        open: allTasks.filter((t) => t.status === 'open').length,
+        in_progress: allTasks.filter((t) => t.status === 'in_progress').length,
+        completed: allTasks.filter((t) => t.status === 'completed').length,
+        closed: allTasks.filter((t) => t.status === 'closed').length,
+    };
+
     return (
         <div className="space-y-6">
             <PageHeader
@@ -89,6 +100,50 @@ export default function TasksPage() {
                     ) : undefined
                 }
             />
+
+            {/* Status Counters */}
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <StatusCounter
+                    label="Atanmamış"
+                    count={statusCounts.unassigned}
+                    color="bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800"
+                    textColor="text-gray-700 dark:text-gray-300"
+                    active={statusFilter === 'unassigned'}
+                    onClick={() => { setStatusFilter(statusFilter === 'unassigned' ? 'all' : 'unassigned'); setPage(1); }}
+                />
+                <StatusCounter
+                    label="Yeni Görevler"
+                    count={statusCounts.open}
+                    color="bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800"
+                    textColor="text-blue-700 dark:text-blue-300"
+                    active={statusFilter === 'open'}
+                    onClick={() => { setStatusFilter(statusFilter === 'open' ? 'all' : 'open'); setPage(1); }}
+                />
+                <StatusCounter
+                    label="Devam Eden"
+                    count={statusCounts.in_progress}
+                    color="bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800"
+                    textColor="text-orange-700 dark:text-orange-300"
+                    active={statusFilter === 'in_progress'}
+                    onClick={() => { setStatusFilter(statusFilter === 'in_progress' ? 'all' : 'in_progress'); setPage(1); }}
+                />
+                <StatusCounter
+                    label="Tamamlanmış"
+                    count={statusCounts.completed}
+                    color="bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
+                    textColor="text-green-700 dark:text-green-300"
+                    active={statusFilter === 'completed'}
+                    onClick={() => { setStatusFilter(statusFilter === 'completed' ? 'all' : 'completed'); setPage(1); }}
+                />
+                <StatusCounter
+                    label="Kapatılmış"
+                    count={statusCounts.closed}
+                    color="bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800"
+                    textColor="text-gray-600 dark:text-gray-400"
+                    active={statusFilter === 'closed'}
+                    onClick={() => { setStatusFilter(statusFilter === 'closed' ? 'all' : 'closed'); setPage(1); }}
+                />
+            </div>
 
             {/* Filters */}
             <Card>
@@ -278,5 +333,24 @@ export default function TasksPage() {
                 </>
             )}
         </div>
+    );
+}
+
+function StatusCounter({ label, count, color, textColor, active, onClick }: {
+    label: string;
+    count: number;
+    color: string;
+    textColor: string;
+    active: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            onClick={onClick}
+            className={`rounded-xl border p-4 text-center transition-all hover:shadow-md cursor-pointer ${color} ${active ? 'ring-2 ring-primary shadow-md' : ''}`}
+        >
+            <p className={`text-2xl font-bold ${textColor}`}>{count}</p>
+            <p className="text-xs text-muted-foreground mt-1">{label}</p>
+        </button>
     );
 }
