@@ -156,10 +156,10 @@ function TaskCard({ task }: { task: ReturnType<typeof useTasks>['data'] extends 
                 <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-2 mb-2">
                         <div className="flex items-center gap-2">
-                            <span className="font-mono text-sm font-bold">#{task.serial_number}</span>
+                            <span className="text-sm font-bold">{task.title || task.description.substring(0, 50)}</span>
                             {overdue && <Badge variant="destructive" className="text-[10px]">Gecikmiş</Badge>}
                         </div>
-                        {task.title && <p className="text-sm font-medium line-clamp-1">{task.title}</p>}
+                        <p className="text-[11px] text-muted-foreground font-mono">#{task.serial_number}</p>
                         <div className="flex items-center gap-1.5">
                             <SeverityBadge severity={task.severity} showStars={false} />
                             <TaskStatusBadge status={task.status} />

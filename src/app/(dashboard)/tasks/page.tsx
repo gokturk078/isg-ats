@@ -270,10 +270,10 @@ export default function TasksPage() {
                                 <TableBody>
                                     {tasksData.tasks.map((task) => (
                                         <TableRow key={task.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/tasks/${task.id}`)}>
-                                            <TableCell className="font-mono text-sm">
+                                            <TableCell>
                                                 <div>
-                                                    <span>#{task.serial_number}</span>
-                                                    {task.title && <p className="text-xs text-muted-foreground font-sans truncate max-w-[200px]">{task.title}</p>}
+                                                    <span className="text-sm font-medium">{task.title || task.description.substring(0, 50)}</span>
+                                                    <p className="text-[11px] text-muted-foreground font-mono">#{task.serial_number}</p>
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-xs text-muted-foreground">{formatDate(task.created_at)}</TableCell>
@@ -320,7 +320,10 @@ export default function TasksPage() {
                                 <Card className="hover:bg-muted/50 transition-colors">
                                     <CardContent className="p-4">
                                         <div className="flex items-start justify-between gap-2 mb-2">
-                                            <span className="font-mono text-sm font-bold">#{task.serial_number}</span>
+                                            <div>
+                                                <span className="text-sm font-bold">{task.title || task.description.substring(0, 50)}</span>
+                                                <p className="text-[11px] text-muted-foreground font-mono">#{task.serial_number}</p>
+                                            </div>
                                             <TaskStatusBadge status={task.status} />
                                         </div>
                                         <p className="text-sm line-clamp-2 mb-2">{task.description}</p>

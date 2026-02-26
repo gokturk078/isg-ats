@@ -209,10 +209,10 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     return (
         <div className="space-y-6">
             <PageHeader
-                title={task.title ? `#${task.serial_number} — ${task.title}` : `Görev #${task.serial_number}`}
+                title={task.title || `Görev #${task.serial_number}`}
                 breadcrumbs={[
                     { label: 'Görevler', href: '/tasks' },
-                    { label: `#${task.serial_number}` },
+                    { label: task.title ? `#${task.serial_number}` : '' },
                 ]}
             />
 

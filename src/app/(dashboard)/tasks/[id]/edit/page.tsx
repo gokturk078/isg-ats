@@ -149,10 +149,10 @@ export default function TaskEditPage({ params }: { params: Promise<{ id: string 
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
             <PageHeader
-                title={`Görev Düzenle — #${task.serial_number}`}
+                title={`Düzenle — ${task.title || '#' + task.serial_number}`}
                 breadcrumbs={[
                     { label: 'Görevler', href: '/tasks' },
-                    { label: `#${task.serial_number}`, href: `/tasks/${id}` },
+                    { label: task.title || `#${task.serial_number}`, href: `/tasks/${id}` },
                     { label: 'Düzenle' },
                 ]}
             />
