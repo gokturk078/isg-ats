@@ -35,6 +35,7 @@ export default function TaskEditPage({ params }: { params: Promise<{ id: string 
     const [isSaving, setIsSaving] = useState(false);
 
     // Form state — initialized from task data
+    const [title, setTitle] = useState<string | null>(null);
     const [description, setDescription] = useState<string | null>(null);
     const [actionRequired, setActionRequired] = useState<string | null>(null);
     const [severity, setSeverity] = useState<string | null>(null);
@@ -74,6 +75,7 @@ export default function TaskEditPage({ params }: { params: Promise<{ id: string 
     if (!task) return <div className="text-center py-12 text-muted-foreground">Görev bulunamadı</div>;
 
     // Use form state if modified, otherwise fall back to task data
+    const currentTitle = title ?? task.title ?? '';
     const currentDescription = description ?? task.description;
     const currentActionRequired = actionRequired ?? task.action_required ?? '';
     const currentSeverity = severity ?? String(task.severity);
@@ -93,6 +95,7 @@ export default function TaskEditPage({ params }: { params: Promise<{ id: string 
         setIsSaving(true);
         try {
             const updates: Record<string, unknown> = {
+                title: currentTitle.trim() || null,
                 description: currentDescription.trim(),
                 action_required: currentActionRequired.trim() || null,
                 severity: Number(currentSeverity),
@@ -159,6 +162,16 @@ export default function TaskEditPage({ params }: { params: Promise<{ id: string 
                     <CardTitle className="text-lg">Görev Bilgileri</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-5">
+                    {/* Görev İsmi */}
+                    <div className="space-y-2">
+                        <Label>Görev İsmi</Label>
+                        <Input
+                            value={currentTitle}
+                            onChange={(e) => setTitle(e.target.value)}
+                            placeholder="Ör: Merdiven korkuluğu eksik"
+                        />
+                    </div>
+
                     {/* Açıklama */}
                     <div className="space-y-2">
                         <Label>Açıklama *</Label>

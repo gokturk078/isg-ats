@@ -111,6 +111,7 @@ export default function NewTaskPage() {
             const { data: task, error: taskError } = await supabase
                 .from('tasks')
                 .insert({
+                    title: data.title,
                     inspector_id: profile.id,
                     location_id: data.location_id,
                     category_id: data.category_id,
@@ -351,6 +352,14 @@ export default function NewTaskPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>Görev İsmi *</Label>
+                                <Input
+                                    placeholder="Ör: Merdiven korkuluğu eksik"
+                                    {...register('title')}
+                                />
+                                {errors.title && <p className="text-sm text-destructive">{errors.title.message}</p>}
+                            </div>
                             <div className="space-y-2">
                                 <Label>Tehlikeli Durum Açıklaması *</Label>
                                 <Textarea

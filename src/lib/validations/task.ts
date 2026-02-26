@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const taskCreateSchema = z.object({
+    title: z.string().min(3, 'Görev ismi en az 3 karakter olmalıdır').max(200, 'Görev ismi en fazla 200 karakter olabilir'),
     location_id: z.string().uuid('Geçerli bir lokasyon seçiniz'),
     floor: z.string().optional(),
     exact_location: z.string().optional(),

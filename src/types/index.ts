@@ -50,6 +50,7 @@ export interface TaskCategory {
 export interface Task {
     id: string;
     serial_number: string;
+    title?: string;
     inspector_id: string;
     responsible_id?: string;
     location_id?: string;

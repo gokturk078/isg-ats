@@ -270,7 +270,12 @@ export default function TasksPage() {
                                 <TableBody>
                                     {tasksData.tasks.map((task) => (
                                         <TableRow key={task.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/tasks/${task.id}`)}>
-                                            <TableCell className="font-mono text-sm">#{task.serial_number}</TableCell>
+                                            <TableCell className="font-mono text-sm">
+                                                <div>
+                                                    <span>#{task.serial_number}</span>
+                                                    {task.title && <p className="text-xs text-muted-foreground font-sans truncate max-w-[200px]">{task.title}</p>}
+                                                </div>
+                                            </TableCell>
                                             <TableCell className="text-xs text-muted-foreground">{formatDate(task.created_at)}</TableCell>
                                             <TableCell>
                                                 <span className="text-sm">{task.category?.name ?? '-'}</span>
