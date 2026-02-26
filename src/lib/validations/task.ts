@@ -12,7 +12,7 @@ export const taskCreateSchema = z.object({
         .min(10, 'Açıklama en az 10 karakter olmalıdır')
         .max(2000, 'Açıklama en fazla 2000 karakter olabilir'),
     severity: z
-        .number()
+        .number({ error: 'Önem derecesi seçiniz' })
         .int()
         .min(1, 'Önem derecesi 1-5 arası olmalıdır')
         .max(5, 'Önem derecesi 1-5 arası olmalıdır'),

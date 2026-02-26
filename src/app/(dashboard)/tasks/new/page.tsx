@@ -205,7 +205,7 @@ export default function NewTaskPage() {
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
                                 <Label>Lokasyon *</Label>
-                                <Select onValueChange={(v) => setValue('location_id', v)}>
+                                <Select onValueChange={(v) => setValue('location_id', v, { shouldValidate: true })}>
                                     <SelectTrigger><SelectValue placeholder="Lokasyon seçiniz" /></SelectTrigger>
                                     <SelectContent>
                                         {locations?.map((loc) => (
@@ -249,7 +249,7 @@ export default function NewTaskPage() {
                                         <button
                                             key={cat.id}
                                             type="button"
-                                            onClick={() => setValue('category_id', cat.id)}
+                                            onClick={() => setValue('category_id', cat.id, { shouldValidate: true })}
                                             className={`p-3 rounded-lg border text-left text-sm transition-all ${watch('category_id') === cat.id
                                                 ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
                                                 : 'hover:border-primary/50'
@@ -264,7 +264,7 @@ export default function NewTaskPage() {
                             </div>
                             <div className="space-y-2">
                                 <Label>Tespit Usulü</Label>
-                                <Select defaultValue="Saha Gözlem" onValueChange={(v) => setValue('detection_method', v)}>
+                                <Select defaultValue="Saha Gözlem" onValueChange={(v) => setValue('detection_method', v, { shouldValidate: true })}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="Saha Gözlem">Saha Gözlem</SelectItem>
@@ -352,7 +352,7 @@ export default function NewTaskPage() {
                                             <button
                                                 key={sev}
                                                 type="button"
-                                                onClick={() => setValue('severity', sev as 1 | 2 | 3 | 4 | 5)}
+                                                onClick={() => setValue('severity', sev as 1 | 2 | 3 | 4 | 5, { shouldValidate: true })}
                                                 className={`p-3 rounded-lg border text-center transition-all ${watchSeverity === sev
                                                     ? `ring-2 ring-offset-1`
                                                     : 'hover:border-primary/50'
@@ -380,7 +380,7 @@ export default function NewTaskPage() {
 
                             <div className="space-y-2">
                                 <Label>Görevli Ata</Label>
-                                <Select onValueChange={(v) => setValue('responsible_id', v)}>
+                                <Select onValueChange={(v) => setValue('responsible_id', v, { shouldValidate: true })}>
                                     <SelectTrigger><SelectValue placeholder="Görevli seçiniz (isteğe bağlı)" /></SelectTrigger>
                                     <SelectContent>
                                         {responsibles?.map((user) => (
