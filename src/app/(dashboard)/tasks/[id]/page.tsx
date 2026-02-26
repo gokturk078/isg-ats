@@ -24,9 +24,10 @@ import { toast } from 'sonner';
 import {
     MapPin, User, Calendar, Clock, AlertTriangle, Send,
     CheckCircle, XCircle, Play, Lock, MessageSquare, Image,
-    Upload, X, Loader2, Camera,
+    Upload, X, Loader2, Camera, FileDown,
 } from 'lucide-react';
 import type { TaskStatus } from '@/types';
+import { generateTaskPdf } from '@/lib/utils/generate-task-pdf';
 
 async function sendNotification(taskId: string, type: string, rejectionReason?: string) {
     try {
@@ -54,6 +55,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     // Completion dialog state
     const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
     const [completionNote, setCompletionNote] = useState('');
+    const [pdfLoading, setPdfLoading] = useState(false);
     const [completionPhotos, setCompletionPhotos] = useState<File[]>([]);
     const [completionPreviews, setCompletionPreviews] = useState<string[]>([]);
     const [isCompleting, setIsCompleting] = useState(false);
@@ -406,6 +408,31 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                             {!canAct && (
                                 <p className="text-sm text-muted-foreground text-center py-2">Bu görev üzerinde işlem yetkiniz bulunmuyor.</p>
                             )}
+
+                            <Separator />
+                            <Button
+                                className="w-full"
+                                variant="outline"
+                                disabled={pdfLoading}
+                                onClick={async () => {
+                                    setPdfLoading(true);
+                                    try {
+                                        await generateTaskPdf(task);
+                                        toast.success('PDF indirildi');
+                                    } catch (e) {
+                                        console.error('PDF hatası:', e);
+                                        toast.error('PDF oluşturulamadı');
+                                    } finally {
+                                        setPdfLoading(false);
+                                    }
+                                }}
+                            >
+                                {pdfLoading ? (
+                                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> PDF Hazirlaniyor...</>
+                                ) : (
+                                    <><FileDown className="mr-2 h-4 w-4" /> PDF Indir</>
+                                )}
+                            </Button>
                         </CardContent>
                     </Card>
                 </div>
