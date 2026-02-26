@@ -108,7 +108,9 @@ export default function TasksPage() {
             if (error) throw error;
         },
         onSuccess: async () => {
-            await queryClient.refetchQueries({ queryKey: ['tasks'] });
+            await queryClient.refetchQueries({
+                predicate: (query) => (query.queryKey[0] as string) === 'tasks',
+            });
             toast.success('Görev silindi');
             setDeleteTaskId(null);
         },
