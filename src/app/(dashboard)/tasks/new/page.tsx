@@ -223,6 +223,14 @@ export default function NewTaskPage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
+                                <Label>Görev İsmi *</Label>
+                                <Input
+                                    placeholder="Ör: Merdiven korkuluğu eksik"
+                                    {...register('title')}
+                                />
+                                {errors.title && <p className="text-sm text-destructive">{errors.title.message}</p>}
+                            </div>
+                            <div className="space-y-2">
                                 <Label>Lokasyon *</Label>
                                 <Select onValueChange={(v) => setValue('location_id', v, { shouldValidate: true })}>
                                     <SelectTrigger><SelectValue placeholder="Lokasyon seçiniz" /></SelectTrigger>
@@ -352,14 +360,6 @@ export default function NewTaskPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Görev İsmi *</Label>
-                                <Input
-                                    placeholder="Ör: Merdiven korkuluğu eksik"
-                                    {...register('title')}
-                                />
-                                {errors.title && <p className="text-sm text-destructive">{errors.title.message}</p>}
-                            </div>
                             <div className="space-y-2">
                                 <Label>Tehlikeli Durum Açıklaması *</Label>
                                 <Textarea

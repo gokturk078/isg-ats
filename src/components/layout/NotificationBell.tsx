@@ -1,18 +1,32 @@
 'use client';
 
 import { Bell, Check, CheckCheck } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useNotifications } from '@/hooks/useNotifications';
 import { formatRelative } from '@/lib/utils/date';
 import Link from 'next/link';
+import { useState } from 'react';
 
 export function NotificationBell() {
     const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+    const router = useRouter();
+    const [open, setOpen] = useState(false);
+
+    const handleNotificationClick = (notification: typeof notifications[0]) => {
+        if (!notification.is_read) {
+            markAsRead.mutate(notification.id);
+        }
+        if (notification.task_id) {
+            setOpen(false);
+            router.push(`/tasks/${notification.task_id}`);
+        }
+    };
 
     return (
-        <Popover>
+        <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
                     <Bell className="h-5 w-5" />
@@ -50,11 +64,7 @@ export function NotificationBell() {
                                     key={notification.id}
                                     className={`p-3 hover:bg-muted/50 cursor-pointer transition-colors ${!notification.is_read ? 'bg-primary/5' : ''
                                         }`}
-                                    onClick={() => {
-                                        if (!notification.is_read) {
-                                            markAsRead.mutate(notification.id);
-                                        }
-                                    }}
+                                    onClick={() => handleNotificationClick(notification)}
                                 >
                                     <div className="flex items-start gap-2">
                                         <div className="flex-1 min-w-0">
