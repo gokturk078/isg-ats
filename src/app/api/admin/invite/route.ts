@@ -34,12 +34,12 @@ export async function POST(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, is_super_admin')
       .eq('id', user.id)
       .single();
 
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Bu işlem için yönetici yetkisi gereklidir.' }, { status: 403 });
+    if (!profile?.is_super_admin) {
+      return NextResponse.json({ error: 'Bu işlem için süper yönetici yetkisi gereklidir.' }, { status: 403 });
     }
 
     const body = await request.json();

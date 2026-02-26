@@ -36,10 +36,13 @@ const mainNavItems = [
 ];
 
 const adminNavItems = [
-    { label: 'Kullanıcılar', href: '/admin/users', icon: Users },
     { label: 'Lokasyonlar', href: '/admin/locations', icon: MapPin },
     { label: 'Kategoriler', href: '/admin/categories', icon: Tags },
     { label: 'Ayarlar', href: '/admin/settings', icon: Settings },
+];
+
+const superAdminNavItems = [
+    { label: 'Kullanıcılar', href: '/admin/users', icon: Users },
 ];
 
 export function AppSidebar() {
@@ -100,7 +103,7 @@ export function AppSidebar() {
                         <SidebarGroupLabel>Yönetim</SidebarGroupLabel>
                         <SidebarGroupContent>
                             <SidebarMenu>
-                                {adminNavItems.map((item) => (
+                                {(profile?.is_super_admin ? [...superAdminNavItems, ...adminNavItems] : adminNavItems).map((item) => (
                                     <SidebarMenuItem key={item.href}>
                                         <SidebarMenuButton asChild isActive={pathname === item.href}>
                                             <Link href={item.href}>

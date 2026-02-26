@@ -38,14 +38,26 @@ import {
 import { toast } from 'sonner';
 import { Plus, Users, Loader2 } from 'lucide-react';
 import type { Profile, UserRole } from '@/types';
+import { useProfile } from '@/hooks/useProfile';
 
 export default function UsersPage() {
     const supabase = createClient();
     const queryClient = useQueryClient();
+    const { data: profile } = useProfile();
     const [dialogOpen, setDialogOpen] = useState(false);
     const [inviteEmail, setInviteEmail] = useState('');
     const [inviteName, setInviteName] = useState('');
     const [inviteRole, setInviteRole] = useState<UserRole>('responsible');
+
+    // Guard: only super admin
+    if (profile && !profile.is_super_admin) {
+        return (
+            <div className="space-y-6">
+                <PageHeader title="Kullanıcılar" description="Bu sayfaya erişim yetkiniz bulunmuyor." />
+                <EmptyState icon={Users} title="Yetkisiz Erişim" description="Kullanıcı yönetimi yalnızca süper yönetici tarafından yapılabilir." />
+            </div>
+        );
+    }
 
     const { data: users, isLoading } = useQuery<Profile[]>({
         queryKey: ['admin-users'],

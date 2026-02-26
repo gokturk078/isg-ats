@@ -21,6 +21,7 @@ export interface Profile {
     location_id?: string;
     avatar_url?: string;
     is_active: boolean;
+    is_super_admin?: boolean;
     last_seen?: string;
     created_at: string;
     updated_at?: string;
