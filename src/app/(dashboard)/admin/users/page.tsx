@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogFooter,
@@ -150,6 +151,7 @@ export default function UsersPage() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Kullanıcı Davet Et</DialogTitle>
+                        <DialogDescription>Sisteme yeni bir kullanıcı davet edin. Email adresine giriş bağlantısı gönderilecektir.</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                         <div className="space-y-2">

@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { Plus, Tags, Loader2 } from 'lucide-react';
@@ -104,7 +104,7 @@ export default function CategoriesPage() {
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogContent>
-                    <DialogHeader><DialogTitle>Yeni Kategori</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>Yeni Kategori</DialogTitle><DialogDescription>Görevleri gruplamak için yeni bir kategori ekleyin.</DialogDescription></DialogHeader>
                     <div className="space-y-4">
                         <div className="space-y-2"><Label>Ad</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Kategori adı" /></div>
                         <div className="space-y-2"><Label>Renk</Label><div className="flex items-center gap-2"><input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-10 w-10 rounded border cursor-pointer" /><Input value={color} onChange={(e) => setColor(e.target.value)} className="flex-1" /></div></div>

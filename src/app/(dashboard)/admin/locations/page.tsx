@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { Plus, MapPin, Loader2 } from 'lucide-react';
@@ -104,7 +104,7 @@ export default function LocationsPage() {
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogContent>
-                    <DialogHeader><DialogTitle>Yeni Lokasyon</DialogTitle></DialogHeader>
+                    <DialogHeader><DialogTitle>Yeni Lokasyon</DialogTitle><DialogDescription>Görevlerin konumunu belirlemek için yeni bir lokasyon ekleyin.</DialogDescription></DialogHeader>
                     <div className="space-y-4">
                         <div className="space-y-2"><Label>Ad</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Lokasyon adı" /></div>
                         <div className="space-y-2"><Label>Kod (isteğe bağlı)</Label><Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Ör: T2Z8" /></div>

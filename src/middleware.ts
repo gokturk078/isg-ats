@@ -34,7 +34,8 @@ export async function middleware(request: NextRequest) {
         user &&
         (request.nextUrl.pathname.startsWith('/login') ||
             request.nextUrl.pathname.startsWith('/register') ||
-            request.nextUrl.pathname.startsWith('/reset-password'))
+            request.nextUrl.pathname.startsWith('/reset-password')) &&
+        !request.nextUrl.pathname.startsWith('/set-password')
     ) {
         return NextResponse.redirect(new URL('/dashboard', request.url));
     }
