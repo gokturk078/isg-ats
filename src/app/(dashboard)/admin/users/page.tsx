@@ -118,15 +118,18 @@ export default function UsersPage() {
 
     const deleteUser = useMutation({
         mutationFn: async (id: string) => {
-            const { error } = await supabase.from('profiles').delete().eq('id', id);
-            if (error) throw error;
+            const res = await fetch(`/api/admin/delete?id=${id}&type=user`, { method: 'DELETE' });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || 'Silme başarısız');
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin-users'] });
             toast.success('Kullanıcı silindi');
             setDeleteTarget(null);
         },
-        onError: () => toast.error('Kullanıcı silinemedi'),
+        onError: (e: Error) => toast.error(e.message || 'Kullanıcı silinemedi'),
     });
 
     const roleLabel: Record<string, string> = { admin: 'Yönetici', inspector: 'Denetçi', responsible: 'Görevli' };

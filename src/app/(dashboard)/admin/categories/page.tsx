@@ -67,10 +67,11 @@ export default function CategoriesPage() {
 
     const deleteItem = useMutation({
         mutationFn: async (id: string) => {
-            // Nullify FK references first
-            await supabase.from('tasks').update({ category_id: null }).eq('category_id', id);
-            const { error } = await supabase.from('task_categories').delete().eq('id', id);
-            if (error) throw error;
+            const res = await fetch(`/api/admin/delete?id=${id}&type=category`, { method: 'DELETE' });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || 'Silme başarısız');
+            }
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
@@ -78,7 +79,7 @@ export default function CategoriesPage() {
             toast.success('Kategori silindi');
             setDeleteTarget(null);
         },
-        onError: () => toast.error('Kategori silinemedi.'),
+        onError: (e: Error) => toast.error(e.message || 'Kategori silinemedi.'),
     });
 
     if (isLoading) return <LoadingSpinner text="Kategoriler yükleniyor..." />;

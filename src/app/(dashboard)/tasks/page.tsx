@@ -100,12 +100,11 @@ export default function TasksPage() {
     const queryClient = useQueryClient();
     const deleteTask = useMutation({
         mutationFn: async (taskId: string) => {
-            // Cascade: photos, actions, notifications, then task
-            await supabase.from('task_photos').delete().eq('task_id', taskId);
-            await supabase.from('task_actions').delete().eq('task_id', taskId);
-            await supabase.from('notifications').delete().eq('task_id', taskId);
-            const { error } = await supabase.from('tasks').delete().eq('id', taskId);
-            if (error) throw error;
+            const res = await fetch(`/api/admin/delete?id=${taskId}&type=task`, { method: 'DELETE' });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || 'Silme başarısız');
+            }
         },
         onSuccess: async () => {
             await queryClient.refetchQueries({
@@ -114,7 +113,7 @@ export default function TasksPage() {
             toast.success('Görev silindi');
             setDeleteTaskId(null);
         },
-        onError: () => toast.error('Görev silinemedi'),
+        onError: (e: Error) => toast.error(e.message || 'Görev silinemedi'),
     });
 
     return (
