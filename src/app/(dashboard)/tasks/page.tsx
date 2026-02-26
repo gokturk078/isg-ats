@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTasks } from '@/hooks/useTasks';
 import { useProfile } from '@/hooks/useProfile';
 import { useQuery } from '@tanstack/react-query';
@@ -36,6 +37,7 @@ import type { TaskStatus, Location, TaskCategory, Task } from '@/types';
 
 export default function TasksPage() {
     const supabase = createClient();
+    const router = useRouter();
     const { data: profile } = useProfile();
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -249,7 +251,7 @@ export default function TasksPage() {
                                 </TableHeader>
                                 <TableBody>
                                     {tasksData.tasks.map((task) => (
-                                        <TableRow key={task.id}>
+                                        <TableRow key={task.id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/tasks/${task.id}`)}>
                                             <TableCell className="font-mono text-sm">#{task.serial_number}</TableCell>
                                             <TableCell className="text-xs text-muted-foreground">{formatDate(task.created_at)}</TableCell>
                                             <TableCell>
