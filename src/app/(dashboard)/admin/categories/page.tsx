@@ -15,8 +15,10 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Plus, Tags, Loader2 } from 'lucide-react';
+import { Plus, Tags, Loader2, Trash2 } from 'lucide-react';
 import type { TaskCategory } from '@/types';
+import { useProfile } from '@/hooks/useProfile';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 
 export default function CategoriesPage() {
     const supabase = createClient();
@@ -24,6 +26,8 @@ export default function CategoriesPage() {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [name, setName] = useState('');
     const [color, setColor] = useState('#6366f1');
+    const [deleteTarget, setDeleteTarget] = useState<TaskCategory | null>(null);
+    const { data: profile } = useProfile();
 
     const { data: categories, isLoading } = useQuery<TaskCategory[]>({
         queryKey: ['admin-categories'],
@@ -61,6 +65,20 @@ export default function CategoriesPage() {
         },
     });
 
+    const deleteItem = useMutation({
+        mutationFn: async (id: string) => {
+            const { error } = await supabase.from('task_categories').delete().eq('id', id);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
+            queryClient.invalidateQueries({ queryKey: ['categories'] });
+            toast.success('Kategori silindi');
+            setDeleteTarget(null);
+        },
+        onError: () => toast.error('Kategori silinemedi. Bağlı görevler olabilir.'),
+    });
+
     if (isLoading) return <LoadingSpinner text="Kategoriler yükleniyor..." />;
 
     return (
@@ -91,9 +109,16 @@ export default function CategoriesPage() {
                                     <TableCell className="font-medium">{cat.name}</TableCell>
                                     <TableCell><Badge variant={cat.is_active ? 'default' : 'secondary'}>{cat.is_active ? 'Aktif' : 'Pasif'}</Badge></TableCell>
                                     <TableCell className="text-right">
-                                        <Button variant="ghost" size="sm" onClick={() => toggleActive.mutate({ id: cat.id, is_active: !cat.is_active })}>
-                                            {cat.is_active ? 'Pasif Yap' : 'Aktif Yap'}
-                                        </Button>
+                                        <div className="flex items-center justify-end gap-1">
+                                            <Button variant="ghost" size="sm" onClick={() => toggleActive.mutate({ id: cat.id, is_active: !cat.is_active })}>
+                                                {cat.is_active ? 'Pasif Yap' : 'Aktif Yap'}
+                                            </Button>
+                                            {profile?.is_super_admin && (
+                                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteTarget(cat); }}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -117,6 +142,15 @@ export default function CategoriesPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={!!deleteTarget}
+                onOpenChange={() => setDeleteTarget(null)}
+                title="Kategoriyi Sil"
+                description={`"${deleteTarget?.name}" kategorisi kalıcı olarak silinecek. Bu işlem geri alınamaz.`}
+                onConfirm={() => deleteTarget && deleteItem.mutate(deleteTarget.id)}
+                loading={deleteItem.isPending}
+            />
         </div>
     );
 }

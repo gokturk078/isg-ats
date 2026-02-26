@@ -36,9 +36,10 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Plus, Users, Loader2 } from 'lucide-react';
+import { Plus, Users, Loader2, Trash2 } from 'lucide-react';
 import type { Profile, UserRole } from '@/types';
 import { useProfile } from '@/hooks/useProfile';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 
 export default function UsersPage() {
     const supabase = createClient();
@@ -48,6 +49,7 @@ export default function UsersPage() {
     const [inviteEmail, setInviteEmail] = useState('');
     const [inviteName, setInviteName] = useState('');
     const [inviteRole, setInviteRole] = useState<UserRole>('responsible');
+    const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
 
     // Guard: only super admin
     if (profile && !profile.is_super_admin) {
@@ -114,6 +116,19 @@ export default function UsersPage() {
         },
     });
 
+    const deleteUser = useMutation({
+        mutationFn: async (id: string) => {
+            const { error } = await supabase.from('profiles').delete().eq('id', id);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+            toast.success('Kullanıcı silindi');
+            setDeleteTarget(null);
+        },
+        onError: () => toast.error('Kullanıcı silinemedi'),
+    });
+
     const roleLabel: Record<string, string> = { admin: 'Yönetici', inspector: 'Denetçi', responsible: 'Görevli' };
 
     if (isLoading) return <LoadingSpinner text="Kullanıcılar yükleniyor..." />;
@@ -158,13 +173,20 @@ export default function UsersPage() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => toggleActive.mutate({ id: user.id, is_active: !user.is_active })}
-                                        >
-                                            {user.is_active ? 'Pasif Yap' : 'Aktif Yap'}
-                                        </Button>
+                                        <div className="flex items-center justify-end gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => toggleActive.mutate({ id: user.id, is_active: !user.is_active })}
+                                            >
+                                                {user.is_active ? 'Pasif Yap' : 'Aktif Yap'}
+                                            </Button>
+                                            {profile?.is_super_admin && !user.is_super_admin && (
+                                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setDeleteTarget(user)}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -209,6 +231,15 @@ export default function UsersPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={!!deleteTarget}
+                onOpenChange={() => setDeleteTarget(null)}
+                title="Kullanıcıyı Sil"
+                description={`"${deleteTarget?.full_name}" kullanıcısı kalıcı olarak silinecek. Bu işlem geri alınamaz.`}
+                onConfirm={() => deleteTarget && deleteUser.mutate(deleteTarget.id)}
+                loading={deleteUser.isPending}
+            />
         </div>
     );
 }

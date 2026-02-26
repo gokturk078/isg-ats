@@ -15,8 +15,10 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Plus, MapPin, Loader2 } from 'lucide-react';
+import { Plus, MapPin, Loader2, Trash2 } from 'lucide-react';
 import type { Location } from '@/types';
+import { useProfile } from '@/hooks/useProfile';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 
 export default function LocationsPage() {
     const supabase = createClient();
@@ -24,6 +26,8 @@ export default function LocationsPage() {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [name, setName] = useState('');
     const [code, setCode] = useState('');
+    const [deleteTarget, setDeleteTarget] = useState<Location | null>(null);
+    const { data: profile } = useProfile();
 
     const { data: locations, isLoading } = useQuery<Location[]>({
         queryKey: ['admin-locations'],
@@ -61,6 +65,20 @@ export default function LocationsPage() {
         },
     });
 
+    const deleteItem = useMutation({
+        mutationFn: async (id: string) => {
+            const { error } = await supabase.from('locations').delete().eq('id', id);
+            if (error) throw error;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['admin-locations'] });
+            queryClient.invalidateQueries({ queryKey: ['locations'] });
+            toast.success('Lokasyon silindi');
+            setDeleteTarget(null);
+        },
+        onError: () => toast.error('Lokasyon silinemedi. Bağlı görevler olabilir.'),
+    });
+
     if (isLoading) return <LoadingSpinner text="Lokasyonlar yükleniyor..." />;
 
     return (
@@ -91,9 +109,16 @@ export default function LocationsPage() {
                                     <TableCell><Badge variant="outline">{loc.code ?? '-'}</Badge></TableCell>
                                     <TableCell><Badge variant={loc.is_active ? 'default' : 'secondary'}>{loc.is_active ? 'Aktif' : 'Pasif'}</Badge></TableCell>
                                     <TableCell className="text-right">
-                                        <Button variant="ghost" size="sm" onClick={() => toggleActive.mutate({ id: loc.id, is_active: !loc.is_active })}>
-                                            {loc.is_active ? 'Pasif Yap' : 'Aktif Yap'}
-                                        </Button>
+                                        <div className="flex items-center justify-end gap-1">
+                                            <Button variant="ghost" size="sm" onClick={() => toggleActive.mutate({ id: loc.id, is_active: !loc.is_active })}>
+                                                {loc.is_active ? 'Pasif Yap' : 'Aktif Yap'}
+                                            </Button>
+                                            {profile?.is_super_admin && (
+                                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteTarget(loc); }}>
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))}
@@ -117,6 +142,15 @@ export default function LocationsPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={!!deleteTarget}
+                onOpenChange={() => setDeleteTarget(null)}
+                title="Lokasyonu Sil"
+                description={`"${deleteTarget?.name}" lokasyonu kalıcı olarak silinecek. Bu işlem geri alınamaz.`}
+                onConfirm={() => deleteTarget && deleteItem.mutate(deleteTarget.id)}
+                loading={deleteItem.isPending}
+            />
         </div>
     );
 }
