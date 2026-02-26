@@ -20,7 +20,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { SEVERITY_CONFIG } from '@/types';
+import { SEVERITY_CONFIG, calculateDueDate } from '@/types';
 import type { Location, TaskCategory, Profile } from '@/types';
 import { toast } from 'sonner';
 import { Loader2, Save, ArrowLeft } from 'lucide-react';
@@ -184,7 +184,10 @@ export default function TaskEditPage({ params }: { params: Promise<{ id: string 
                         {/* Önem */}
                         <div className="space-y-2">
                             <Label>Önem Derecesi *</Label>
-                            <Select value={currentSeverity} onValueChange={(v) => setSeverity(v)}>
+                            <Select value={currentSeverity} onValueChange={(v) => {
+                                setSeverity(v);
+                                setDueDate(calculateDueDate(Number(v)));
+                            }}>
                                 <SelectTrigger><SelectValue placeholder="Seçiniz" /></SelectTrigger>
                                 <SelectContent>
                                     {Object.entries(SEVERITY_CONFIG).sort(([a], [b]) => Number(b) - Number(a)).map(([val, cfg]) => (

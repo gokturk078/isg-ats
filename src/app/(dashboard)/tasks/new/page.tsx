@@ -22,7 +22,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { SEVERITY_CONFIG } from '@/types';
+import { SEVERITY_CONFIG, calculateDueDate } from '@/types';
 import type { Location, TaskCategory, Profile } from '@/types';
 import { toast } from 'sonner';
 import { MapPin, AlertTriangle, Camera, FileText, ChevronLeft, ChevronRight, Loader2, Upload, X, ImageIcon } from 'lucide-react';
@@ -370,7 +370,10 @@ export default function NewTaskPage() {
                                             <button
                                                 key={sev}
                                                 type="button"
-                                                onClick={() => setValue('severity', sev as 1 | 2 | 3 | 4 | 5, { shouldValidate: true })}
+                                                onClick={() => {
+                                                    setValue('severity', sev as 1 | 2 | 3 | 4 | 5, { shouldValidate: true });
+                                                    setValue('due_date', calculateDueDate(sev));
+                                                }}
                                                 className={`p-3 rounded-lg border text-center transition-all ${watchSeverity === sev
                                                     ? `ring-2 ring-offset-1`
                                                     : 'hover:border-primary/50'

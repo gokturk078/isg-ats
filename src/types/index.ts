@@ -183,6 +183,7 @@ export const SEVERITY_CONFIG: Record<number, {
     borderColor: string;
     textColor: string;
     interval: string;
+    dueDays: number;
 }> = {
     5: {
         label: 'İŞ DERHAL DURACAK',
@@ -191,6 +192,7 @@ export const SEVERITY_CONFIG: Record<number, {
         borderColor: 'border-red-500',
         textColor: 'text-red-700',
         interval: 'Aynı Gün',
+        dueDays: 0,
     },
     4: {
         label: 'EN FAZLA 2 GÜN',
@@ -199,6 +201,7 @@ export const SEVERITY_CONFIG: Record<number, {
         borderColor: 'border-orange-500',
         textColor: 'text-orange-700',
         interval: '2 Gün',
+        dueDays: 2,
     },
     3: {
         label: 'EN FAZLA 1 HAFTA',
@@ -207,6 +210,7 @@ export const SEVERITY_CONFIG: Record<number, {
         borderColor: 'border-yellow-500',
         textColor: 'text-yellow-700',
         interval: '1 Hafta',
+        dueDays: 7,
     },
     2: {
         label: 'BİR SONRAKİ DENETİM',
@@ -215,6 +219,7 @@ export const SEVERITY_CONFIG: Record<number, {
         borderColor: 'border-blue-500',
         textColor: 'text-blue-700',
         interval: '~30 Gün',
+        dueDays: 30,
     },
     1: {
         label: 'PLANLANAN DENETİM',
@@ -223,8 +228,17 @@ export const SEVERITY_CONFIG: Record<number, {
         borderColor: 'border-gray-400',
         textColor: 'text-gray-600',
         interval: 'Planlı',
+        dueDays: 90,
     },
 };
+
+/** Önem derecesine göre son tarih hesapla (bugünden itibaren) */
+export function calculateDueDate(severity: number): string {
+    const days = SEVERITY_CONFIG[severity]?.dueDays ?? 7;
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    return date.toISOString().split('T')[0]; // YYYY-MM-DD
+}
 
 export const STATUS_CONFIG: Record<TaskStatus, {
     label: string;
