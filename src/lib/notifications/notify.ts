@@ -61,8 +61,8 @@ export async function createTaskNotification(options: NotifyOptions) {
                 inspector_id, responsible_id,
                 inspector:profiles!tasks_inspector_id_fkey(full_name, email),
                 responsible:profiles!tasks_responsible_id_fkey(full_name, email),
-                location:locations(name),
-                category:task_categories(name)
+                location:locations!tasks_location_id_fkey(name),
+                category:task_categories!tasks_category_id_fkey(name)
             `)
             .eq('id', taskId)
             .single();
