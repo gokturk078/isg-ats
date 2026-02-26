@@ -155,19 +155,22 @@ export default function NewTaskPage() {
             queryClient.invalidateQueries({ queryKey: ['tasks'] });
             toast.success('Görev başarıyla oluşturuldu');
 
-            // Send notification to assigned responsible
+            // Send notification to assigned responsible — MUST complete before navigation
             if (data.responsible_id) {
                 try {
-                    await fetch('/api/notify', {
+                    const res = await fetch('/api/notify', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ taskId: task.id, type: 'task_assigned' }),
                     });
+                    const result = await res.json();
+                    console.log('[Bildirim] Sonuç:', result);
                 } catch (e) {
                     console.error('Bildirim gönderilemedi:', e);
                 }
             }
 
+            // Navigate AFTER notification is sent
             router.push(`/tasks/${task.id}`);
         } catch (error) {
             console.error('Görev oluşturulamadı:', error);

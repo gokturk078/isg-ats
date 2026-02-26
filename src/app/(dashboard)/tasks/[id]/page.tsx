@@ -67,19 +67,19 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
             const { error } = await supabase.from('tasks').update(updates).eq('id', id);
             if (error) throw error;
+
+            // Send notifications — must be awaited inside mutationFn
+            if (status === 'closed') {
+                await sendNotification(id, 'task_closed');
+            } else if (status === 'rejected') {
+                await sendNotification(id, 'task_created', rejectReason);
+            }
         },
-        onSuccess: (_, variables) => {
+        onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['task', id] });
             queryClient.invalidateQueries({ queryKey: ['tasks'] });
             toast.success('Görev durumu güncellendi');
             setConfirmAction(null);
-
-            // Send notifications based on status change
-            if (variables.status === 'closed') {
-                sendNotification(id, 'task_closed');
-            } else if (variables.status === 'rejected') {
-                sendNotification(id, 'task_created', rejectReason);
-            }
         },
         onError: () => toast.error('Durum güncellenemedi'),
     });

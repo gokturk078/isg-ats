@@ -2,18 +2,25 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
+import { useProfile } from '@/hooks/useProfile';
 import type { Notification } from '@/types';
 
 export function useNotifications() {
     const supabase = createClient();
     const queryClient = useQueryClient();
+    const { data: profile } = useProfile();
 
     const query = useQuery<Notification[]>({
-        queryKey: ['notifications'],
+        queryKey: ['notifications', profile?.id],
         queryFn: async () => {
+            // Get current user
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return [];
+
             const { data, error } = await supabase
                 .from('notifications')
                 .select('*')
+                .eq('user_id', user.id)
                 .order('created_at', { ascending: false })
                 .limit(50);
 
@@ -24,6 +31,7 @@ export function useNotifications() {
 
             return data as Notification[];
         },
+        enabled: !!profile?.id,
     });
 
     const unreadCount = query.data?.filter((n) => !n.is_read).length ?? 0;
