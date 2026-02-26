@@ -153,6 +153,16 @@ export default function NewTaskPage() {
 
             queryClient.invalidateQueries({ queryKey: ['tasks'] });
             toast.success('Görev başarıyla oluşturuldu');
+
+            // Send notification to assigned responsible
+            if (data.responsible_id) {
+                fetch('/api/notify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ taskId: task.id, type: 'task_assigned' }),
+                }).catch(console.error);
+            }
+
             router.push(`/tasks/${task.id}`);
         } catch (error) {
             console.error('Görev oluşturulamadı:', error);

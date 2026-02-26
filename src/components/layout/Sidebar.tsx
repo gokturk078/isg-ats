@@ -32,7 +32,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 const mainNavItems = [
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'inspector', 'responsible'] },
-    { label: 'Görevler', href: '/tasks', icon: ClipboardList, roles: ['admin', 'inspector'] },
+    { label: 'Görevler', href: '/tasks', icon: ClipboardList, roles: ['admin', 'inspector', 'responsible'] },
     { label: 'Görevlerim', href: '/my-tasks', icon: ClipboardCheck, roles: ['responsible'] },
     { label: 'Yeni Görev', href: '/tasks/new', icon: Plus, roles: ['admin', 'inspector'] },
     { label: 'Raporlar', href: '/reports', icon: BarChart3, roles: ['admin', 'inspector'] },

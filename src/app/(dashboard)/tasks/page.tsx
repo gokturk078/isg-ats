@@ -181,8 +181,10 @@ export default function TasksPage() {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Seri No</TableHead>
+                                        <TableHead>Tarih</TableHead>
                                         <TableHead>Kategori</TableHead>
                                         <TableHead>Lokasyon</TableHead>
+                                        <TableHead>Denetçi</TableHead>
                                         <TableHead>Önem</TableHead>
                                         <TableHead>Durum</TableHead>
                                         <TableHead>Görevli</TableHead>
@@ -194,10 +196,12 @@ export default function TasksPage() {
                                     {tasksData.tasks.map((task) => (
                                         <TableRow key={task.id}>
                                             <TableCell className="font-mono text-sm">#{task.serial_number}</TableCell>
+                                            <TableCell className="text-xs text-muted-foreground">{formatDate(task.created_at)}</TableCell>
                                             <TableCell>
                                                 <span className="text-sm">{task.category?.name ?? '-'}</span>
                                             </TableCell>
                                             <TableCell className="text-sm">{task.location?.name ?? '-'}</TableCell>
+                                            <TableCell className="text-sm">{task.inspector?.full_name ?? '-'}</TableCell>
                                             <TableCell>
                                                 <SeverityBadge severity={task.severity} showStars={false} />
                                             </TableCell>
