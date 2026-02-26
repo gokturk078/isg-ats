@@ -80,12 +80,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: createError.message }, { status: 400 });
     }
 
-    // Profile'ı güncelle
+    // Profile'ı oluştur veya güncelle (trigger çalışmamış olabilir)
     if (newUser?.user) {
-      await serviceClient.from('profiles').update({
+      await serviceClient.from('profiles').upsert({
+        id: newUser.user.id,
         full_name,
+        email,
         role,
-      }).eq('id', newUser.user.id);
+        is_active: true,
+      }, { onConflict: 'id' });
     }
 
     // Davet emaili gönder (kendi Gmail'imizden)
