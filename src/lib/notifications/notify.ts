@@ -53,16 +53,14 @@ export async function createTaskNotification(options: NotifyOptions) {
     try {
         const supabase = await createServiceClient();
 
-        // Fetch task with relations
+        // Fetch task — avoid ambiguous FK joins for locations
         const { data: task, error: fetchError } = await supabase
             .from('tasks')
             .select(`
                 id, serial_number, description, severity, status,
-                inspector_id, responsible_id,
+                inspector_id, responsible_id, location_id, category_id,
                 inspector:profiles!tasks_inspector_id_fkey(full_name, email),
-                responsible:profiles!tasks_responsible_id_fkey(full_name, email),
-                location:locations!tasks_location_id_fkey(name),
-                category:task_categories!tasks_category_id_fkey(name)
+                responsible:profiles!tasks_responsible_id_fkey(full_name, email)
             `)
             .eq('id', taskId)
             .single();
@@ -77,7 +75,24 @@ export async function createTaskNotification(options: NotifyOptions) {
             return { success: false, error: 'Görev bulunamadı' };
         }
 
-        const taskData = task as unknown as TaskData;
+        // Fetch location and category names separately to avoid FK ambiguity
+        let locationName: string | null = null;
+        let categoryName: string | null = null;
+
+        if (task.location_id) {
+            const { data: loc } = await supabase.from('locations').select('name').eq('id', task.location_id).single();
+            locationName = loc?.name ?? null;
+        }
+        if (task.category_id) {
+            const { data: cat } = await supabase.from('task_categories').select('name').eq('id', task.category_id).single();
+            categoryName = cat?.name ?? null;
+        }
+
+        const taskData: TaskData = {
+            ...(task as any),
+            location: locationName ? { name: locationName } : null,
+            category: categoryName ? { name: categoryName } : null,
+        };
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://isg-ats.vercel.app';
         const taskUrl = `${appUrl}/tasks/${taskData.id}`;
 
