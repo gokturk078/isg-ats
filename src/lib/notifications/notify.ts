@@ -7,7 +7,8 @@ type NotificationType =
     | 'task_closed'
     | 'task_overdue'
     | 'task_reminder'
-    | 'task_created';
+    | 'task_created'
+    | 'task_rejected';
 
 interface NotifyOptions {
     taskId: string;
@@ -19,6 +20,7 @@ interface NotifyOptions {
 interface TaskData {
     id: string;
     serial_number: string;
+    title?: string;
     description: string;
     severity: number;
     status: string;
@@ -57,7 +59,7 @@ export async function createTaskNotification(options: NotifyOptions) {
         const { data: task, error: fetchError } = await supabase
             .from('tasks')
             .select(`
-                id, serial_number, description, severity, status,
+                id, serial_number, title, description, severity, status,
                 inspector_id, responsible_id, location_id, category_id,
                 inspector:profiles!tasks_inspector_id_fkey(full_name, email),
                 responsible:profiles!tasks_responsible_id_fkey(full_name, email)
@@ -168,6 +170,7 @@ function mapToDbType(type: NotificationType): string {
         task_overdue: 'task_overdue',
         task_reminder: 'task_reminder',
         task_created: 'task_created',
+        task_rejected: 'task_assigned', // DB may not have task_rejected enum — fallback to task_assigned
     };
     return mapping[type] ?? 'task_assigned';
 }
@@ -228,15 +231,16 @@ function getNotificationConfig(
             }
             break;
 
-        case 'task_created':
-            // For rejected tasks being re-notified
+        case 'task_rejected':
+            // Notify responsible about rejection
             if (task.responsible_id && task.responsible) {
+                const taskLabel = task.title || task.description.substring(0, 80);
                 notifications.push({
                     userId: task.responsible_id,
                     email: task.responsible.email,
                     recipientName: task.responsible.full_name,
                     title: 'Görev Reddedildi',
-                    message: `#${task.serial_number} numaralı görev reddedildi.${rejectionReason ? ' Neden: ' + rejectionReason : ''}`,
+                    message: `#${task.serial_number} "${taskLabel}" görevi reddedildi.${rejectionReason ? ' Neden: ' + rejectionReason : ''} Lütfen düzelterek tekrar gönderin.`,
                 });
             }
             break;

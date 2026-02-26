@@ -72,7 +72,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
             if (status === 'closed') {
                 await sendNotification(id, 'task_closed');
             } else if (status === 'rejected') {
-                await sendNotification(id, 'task_created', rejectReason);
+                await sendNotification(id, 'task_rejected', rejectReason);
             }
         },
         onSuccess: () => {

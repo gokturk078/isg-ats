@@ -1,6 +1,7 @@
 'use client';
 
 import { useNotifications } from '@/hooks/useNotifications';
+import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,10 +9,19 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatRelative } from '@/lib/utils/date';
 import { Bell, CheckCheck } from 'lucide-react';
-import Link from 'next/link';
 
 export default function NotificationsPage() {
     const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+    const router = useRouter();
+
+    const handleClick = (notification: typeof notifications[0]) => {
+        if (!notification.is_read) {
+            markAsRead.mutate(notification.id);
+        }
+        if (notification.task_id) {
+            router.push(`/tasks/${notification.task_id}`);
+        }
+    };
 
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
@@ -34,7 +44,8 @@ export default function NotificationsPage() {
                     {notifications.map((notification) => (
                         <Card
                             key={notification.id}
-                            className={`transition-colors ${!notification.is_read ? 'border-primary/30 bg-primary/5' : ''}`}
+                            className={`transition-colors cursor-pointer hover:bg-muted/50 ${!notification.is_read ? 'border-primary/30 bg-primary/5' : ''}`}
+                            onClick={() => handleClick(notification)}
                         >
                             <CardContent className="p-4">
                                 <div className="flex items-start justify-between gap-3">
@@ -48,18 +59,9 @@ export default function NotificationsPage() {
                                         )}
                                         <p className="text-xs text-muted-foreground mt-1">{formatRelative(notification.created_at)}</p>
                                     </div>
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                        {notification.task_id && (
-                                            <Button variant="ghost" size="sm" asChild>
-                                                <Link href={`/tasks/${notification.task_id}`}>Göreve Git</Link>
-                                            </Button>
-                                        )}
-                                        {!notification.is_read && (
-                                            <Button variant="ghost" size="sm" onClick={() => markAsRead.mutate(notification.id)}>
-                                                Okundu
-                                            </Button>
-                                        )}
-                                    </div>
+                                    {!notification.is_read && (
+                                        <div className="h-2.5 w-2.5 rounded-full bg-primary flex-shrink-0 mt-2" />
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>

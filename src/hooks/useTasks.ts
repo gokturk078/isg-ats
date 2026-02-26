@@ -87,7 +87,7 @@ export function useTasks(options: UseTasksOptions = {}) {
 
             if (search) {
                 query = query.or(
-                    `description.ilike.%${search}%,serial_number.ilike.%${search}%`
+                    `description.ilike.%${search}%,serial_number.ilike.%${search}%,title.ilike.%${search}%`
                 );
             }
 

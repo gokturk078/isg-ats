@@ -159,6 +159,7 @@ function TaskCard({ task }: { task: ReturnType<typeof useTasks>['data'] extends 
                             <span className="font-mono text-sm font-bold">#{task.serial_number}</span>
                             {overdue && <Badge variant="destructive" className="text-[10px]">Gecikmiş</Badge>}
                         </div>
+                        {task.title && <p className="text-sm font-medium line-clamp-1">{task.title}</p>}
                         <div className="flex items-center gap-1.5">
                             <SeverityBadge severity={task.severity} showStars={false} />
                             <TaskStatusBadge status={task.status} />
