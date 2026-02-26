@@ -86,12 +86,19 @@ export default function TasksPage() {
         completed: allTasks.filter((t) => t.status === 'completed').length,
         closed: allTasks.filter((t) => t.status === 'closed').length,
     };
+    const overdueCount = allTasks.filter((t) => t.due_date && isOverdue(t.due_date) && !['closed', 'completed', 'rejected'].includes(t.status)).length;
+
+    const roleLabel = {
+        admin: 'Yönetici',
+        inspector: 'Denetçi',
+        responsible: 'Görevli',
+    }[profile?.role ?? 'responsible'];
 
     return (
         <div className="space-y-6">
             <PageHeader
-                title="Görevler"
-                description="Tüm İSG görevlerini görüntüle ve yönet"
+                title={`Hoş geldiniz, ${profile?.full_name ?? ''}`}
+                description={`${roleLabel} · ${allTasks.length} toplam görev`}
                 action={
                     canCreate ? (
                         <Button asChild>
@@ -102,6 +109,17 @@ export default function TasksPage() {
                     ) : undefined
                 }
             />
+
+            {/* Overdue Warning */}
+            {overdueCount > 0 && (
+                <div className="flex items-center gap-3 p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
+                    <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
+                    <div>
+                        <p className="font-semibold text-destructive text-sm">{overdueCount} Gecikmiş Görev</p>
+                        <p className="text-xs text-muted-foreground">Süresi geçmiş görevler acil aksiyon gerektiriyor.</p>
+                    </div>
+                </div>
+            )}
 
             {/* Status Counters */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">

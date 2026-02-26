@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser();
 
-    // Auth sayfalarında zaten login ise dashboard'a yönlendir
+    // Auth sayfalarında zaten login ise görevlere yönlendir
     if (
         user &&
         (request.nextUrl.pathname.startsWith('/login') ||
@@ -37,15 +37,21 @@ export async function middleware(request: NextRequest) {
             request.nextUrl.pathname.startsWith('/reset-password')) &&
         !request.nextUrl.pathname.startsWith('/set-password')
     ) {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
+        return NextResponse.redirect(new URL('/tasks', request.url));
+    }
+
+    // Eski dashboard/reports yollarını görevlere yönlendir
+    if (
+        request.nextUrl.pathname === '/dashboard' ||
+        request.nextUrl.pathname === '/reports'
+    ) {
+        return NextResponse.redirect(new URL('/tasks', request.url));
     }
 
     // Korumalı sayfalar
     const protectedPaths = [
-        '/dashboard',
         '/tasks',
         '/my-tasks',
-        '/reports',
         '/notifications',
         '/admin',
     ];
@@ -66,7 +72,7 @@ export async function middleware(request: NextRequest) {
             .single();
 
         if (profile?.role !== 'admin') {
-            return NextResponse.redirect(new URL('/dashboard', request.url));
+            return NextResponse.redirect(new URL('/tasks', request.url));
         }
     }
 

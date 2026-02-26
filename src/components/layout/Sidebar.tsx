@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-    LayoutDashboard,
     ClipboardList,
     ClipboardCheck,
     Bell,
@@ -30,7 +29,6 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 
 const mainNavItems = [
-    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'inspector', 'responsible'] },
     { label: 'Görevler', href: '/tasks', icon: ClipboardList, roles: ['admin', 'inspector', 'responsible'] },
     { label: 'Görevlerim', href: '/my-tasks', icon: ClipboardCheck, roles: ['responsible'] },
     { label: 'Yeni Görev', href: '/tasks/new', icon: Plus, roles: ['admin', 'inspector'] },
@@ -56,7 +54,7 @@ export function AppSidebar() {
     return (
         <SidebarRoot>
             <SidebarHeader className="border-b px-6 py-4">
-                <Link href="/dashboard" className="flex items-center gap-2">
+                <Link href="/tasks" className="flex items-center gap-2">
                     <Shield className="h-7 w-7 text-primary" />
                     <div>
                         <h1 className="text-lg font-bold leading-none">İSG-ATS</h1>
