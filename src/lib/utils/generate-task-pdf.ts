@@ -323,7 +323,7 @@ export async function generateTaskPdf(task: Task): Promise<void> {
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(148, 163, 184);
         doc.text(
-            `ISG-ATS | Bu rapor otomatik olusturulmustur | Sayfa ${i}/${totalPages}`,
+            `İSG | Bu rapor otomatik olusturulmustur | Sayfa ${i}/${totalPages}`,
             pageWidth / 2, pageHeight - 8,
             { align: 'center' }
         );

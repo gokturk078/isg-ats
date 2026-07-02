@@ -58,7 +58,7 @@ export default function LoginPage() {
                     <div className="mx-auto mb-4 h-14 w-14 rounded-xl bg-primary/10 flex items-center justify-center">
                         <Shield className="h-8 w-8 text-primary" />
                     </div>
-                    <CardTitle className="text-2xl font-bold">İSG-ATS</CardTitle>
+                    <CardTitle className="text-2xl font-bold">İSG</CardTitle>
                     <CardDescription>İş Sağlığı ve Güvenliği Aksiyon Takip Sistemi</CardDescription>
                 </CardHeader>
                 <CardContent>

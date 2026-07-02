@@ -19,6 +19,7 @@ export const taskCreateSchema = z.object({
         .max(5, 'Önem derecesi 1-5 arası olmalıdır'),
     action_required: z.string().optional(),
     responsible_id: z.string().uuid('Geçerli bir görevli seçiniz').optional(),
+    responsible_ids: z.array(z.string().uuid('Geçerli bir görevli seçiniz')).optional(),
     due_date: z.string().optional(),
 });
 
@@ -33,6 +34,7 @@ export const taskUpdateSchema = z.object({
     severity: z.number().int().min(1).max(5).optional(),
     action_required: z.string().optional(),
     responsible_id: z.string().uuid().nullable().optional(),
+    responsible_ids: z.array(z.string().uuid()).optional(),
     status: z
         .enum([
             'unassigned',

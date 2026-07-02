@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { AssigneePicker } from '@/components/tasks/AssigneePicker';
 import {
     Select,
     SelectContent,
@@ -25,7 +26,7 @@ import {
 import { SEVERITY_CONFIG, calculateDueDate } from '@/types';
 import type { Location, TaskCategory, Profile } from '@/types';
 import { toast } from 'sonner';
-import { MapPin, AlertTriangle, Camera, FileText, ChevronLeft, ChevronRight, Loader2, Upload, X, ImageIcon } from 'lucide-react';
+import { MapPin, AlertTriangle, Camera, FileText, ChevronLeft, ChevronRight, Loader2, Upload, X } from 'lucide-react';
 
 const STEPS = [
     { title: 'Lokasyon', icon: MapPin },
@@ -35,6 +36,11 @@ const STEPS = [
 ];
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+function isMissingAssigneesTableError(error: { message?: string } | null) {
+    const message = error?.message?.toLowerCase() ?? '';
+    return message.includes('task_assignees') || message.includes('schema cache') || message.includes('does not exist');
+}
 
 export default function NewTaskPage() {
     const router = useRouter();
@@ -50,7 +56,7 @@ export default function NewTaskPage() {
     const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<TaskCreateInput>({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         resolver: zodResolver(taskCreateSchema) as any,
-        defaultValues: { detection_method: 'Saha Gözlem' },
+        defaultValues: { detection_method: 'Saha Gözlem', responsible_ids: [] },
     });
 
     const { data: locations } = useQuery<Location[]>({
@@ -78,6 +84,7 @@ export default function NewTaskPage() {
     });
 
     const watchSeverity = watch('severity');
+    const selectedResponsibleIds = watch('responsible_ids') ?? [];
 
     const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
@@ -108,6 +115,9 @@ export default function NewTaskPage() {
         setIsSubmitting(true);
 
         try {
+            const responsibleIds = data.responsible_ids ?? [];
+            const primaryResponsibleId = responsibleIds[0] ?? null;
+
             const { data: task, error: taskError } = await supabase
                 .from('tasks')
                 .insert({
@@ -122,15 +132,34 @@ export default function NewTaskPage() {
                     description: data.description,
                     severity: data.severity,
                     action_required: data.action_required || null,
-                    responsible_id: data.responsible_id || null,
+                    responsible_id: primaryResponsibleId,
                     due_date: data.due_date || null,
                     serial_number: '',
-                    status: data.responsible_id ? 'open' : 'unassigned',
+                    status: responsibleIds.length > 0 ? 'open' : 'unassigned',
                 })
                 .select('id')
                 .single();
 
             if (taskError) throw taskError;
+
+            if (responsibleIds.length > 0) {
+                const { error: assigneeError } = await supabase
+                    .from('task_assignees')
+                    .insert(responsibleIds.map((userId, index) => ({
+                        task_id: task.id,
+                        user_id: userId,
+                        assigned_by: profile.id,
+                        is_primary: index === 0,
+                    })));
+
+                if (assigneeError) {
+                    if (isMissingAssigneesTableError(assigneeError)) {
+                        console.warn('Çoklu görevli tablosu henüz yok; birincil görevli eski alanla kaydedildi.');
+                    } else {
+                        throw assigneeError;
+                    }
+                }
+            }
 
             // Upload photos
             for (const photo of photos) {
@@ -157,7 +186,7 @@ export default function NewTaskPage() {
             toast.success('Görev başarıyla oluşturuldu');
 
             // Send notification to assigned responsible — MUST complete before navigation
-            if (data.responsible_id) {
+            if (responsibleIds.length > 0) {
                 try {
                     const res = await fetch('/api/notify', {
                         method: 'POST',
@@ -410,16 +439,15 @@ export default function NewTaskPage() {
 
                             <div className="space-y-2">
                                 <Label>Görevli Ata</Label>
-                                <Select onValueChange={(v) => setValue('responsible_id', v, { shouldValidate: true })}>
-                                    <SelectTrigger><SelectValue placeholder="Görevli seçiniz (isteğe bağlı)" /></SelectTrigger>
-                                    <SelectContent>
-                                        {responsibles?.map((user) => (
-                                            <SelectItem key={user.id} value={user.id}>
-                                                {user.full_name} ({user.title ?? user.role})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <AssigneePicker
+                                    users={responsibles}
+                                    selectedIds={selectedResponsibleIds}
+                                    onChange={(ids) => {
+                                        setValue('responsible_ids', ids, { shouldValidate: true });
+                                        setValue('responsible_id', ids[0], { shouldValidate: true });
+                                    }}
+                                    disabled={isSubmitting}
+                                />
                             </div>
                         </CardContent>
                     </Card>

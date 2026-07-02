@@ -75,10 +75,28 @@ export interface Task {
     qr_location_id?: string;
     inspector?: Profile;
     responsible?: Profile;
+    assignees?: TaskAssignee[];
     location?: Location;
     category?: TaskCategory;
     photos?: TaskPhoto[];
     actions?: TaskAction[];
+}
+
+export interface TaskAssignee {
+    id: string;
+    task_id: string;
+    user_id: string;
+    assigned_by?: string;
+    is_primary: boolean;
+    assigned_at: string;
+    user?: {
+        id?: string;
+        full_name?: string | null;
+        email?: string | null;
+        role?: UserRole;
+        title?: string | null;
+        avatar_url?: string | null;
+    };
 }
 
 export interface TaskPhoto {

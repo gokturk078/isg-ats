@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AssigneePicker } from '@/components/tasks/AssigneePicker';
 import {
     Select,
     SelectContent,
@@ -24,6 +25,24 @@ import { SEVERITY_CONFIG, calculateDueDate } from '@/types';
 import type { Location, TaskCategory, Profile } from '@/types';
 import { toast } from 'sonner';
 import { Loader2, Save, ArrowLeft } from 'lucide-react';
+import type { Task } from '@/types';
+
+function getTaskAssigneeIds(task: Task): string[] {
+    const assignees = [...(task.assignees ?? [])]
+        .sort((a, b) => {
+            if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+            return new Date(a.assigned_at).getTime() - new Date(b.assigned_at).getTime();
+        })
+        .map((assignee) => assignee.user_id);
+
+    if (assignees.length > 0) return assignees;
+    return task.responsible_id ? [task.responsible_id] : [];
+}
+
+function isMissingAssigneesTableError(error: { message?: string } | null) {
+    const message = error?.message?.toLowerCase() ?? '';
+    return message.includes('task_assignees') || message.includes('schema cache') || message.includes('does not exist');
+}
 
 export default function TaskEditPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
@@ -41,7 +60,7 @@ export default function TaskEditPage({ params }: { params: Promise<{ id: string 
     const [severity, setSeverity] = useState<string | null>(null);
     const [locationId, setLocationId] = useState<string | null>(null);
     const [categoryId, setCategoryId] = useState<string | null>(null);
-    const [responsibleId, setResponsibleId] = useState<string | null>(null);
+    const [responsibleIds, setResponsibleIds] = useState<string[] | null>(null);
     const [dueDate, setDueDate] = useState<string | null>(null);
     const [floor, setFloor] = useState<string | null>(null);
     const [exactLocation, setExactLocation] = useState<string | null>(null);
@@ -81,7 +100,9 @@ export default function TaskEditPage({ params }: { params: Promise<{ id: string 
     const currentSeverity = severity ?? String(task.severity);
     const currentLocationId = locationId ?? task.location_id ?? '';
     const currentCategoryId = categoryId ?? task.category_id ?? '';
-    const currentResponsibleId = responsibleId ?? task.responsible_id ?? '';
+    const storedResponsibleIds = getTaskAssigneeIds(task);
+    const currentResponsibleIds = responsibleIds ?? storedResponsibleIds;
+    const currentResponsibleId = currentResponsibleIds[0] ?? '';
     const currentDueDate = dueDate ?? (task.due_date ? task.due_date.split('T')[0] : '');
     const currentFloor = floor ?? task.floor ?? '';
     const currentExactLocation = exactLocation ?? task.exact_location ?? '';
@@ -107,21 +128,49 @@ export default function TaskEditPage({ params }: { params: Promise<{ id: string 
                 exact_location: currentExactLocation.trim() || null,
             };
 
-            // If responsible changed and new one assigned, set status to open
-            if (currentResponsibleId && !task.responsible_id && task.status === 'unassigned') {
+            // If at least one responsible is assigned, set status to open
+            if (currentResponsibleIds.length > 0 && storedResponsibleIds.length === 0 && task.status === 'unassigned') {
                 updates.status = 'open';
             }
 
             const { error } = await supabase.from('tasks').update(updates).eq('id', id);
             if (error) throw error;
 
-            // Send notification if responsible just assigned
-            if (currentResponsibleId && currentResponsibleId !== task.responsible_id) {
+            const { error: deleteAssigneesError } = await supabase
+                .from('task_assignees')
+                .delete()
+                .eq('task_id', id);
+            const canSyncAssignees = !deleteAssigneesError || !isMissingAssigneesTableError(deleteAssigneesError);
+            if (deleteAssigneesError && canSyncAssignees) throw deleteAssigneesError;
+
+            if (canSyncAssignees && currentResponsibleIds.length > 0) {
+                const { error: insertAssigneesError } = await supabase
+                    .from('task_assignees')
+                    .insert(currentResponsibleIds.map((userId, index) => ({
+                        task_id: id,
+                        user_id: userId,
+                        assigned_by: profile?.id ?? null,
+                        is_primary: index === 0,
+                    })));
+                if (insertAssigneesError) {
+                    if (isMissingAssigneesTableError(insertAssigneesError)) {
+                        console.warn('Çoklu görevli tablosu henüz yok; birincil görevli eski alanla kaydedildi.');
+                    } else {
+                        throw insertAssigneesError;
+                    }
+                }
+            }
+
+            const previousAssigneeSet = new Set(storedResponsibleIds);
+            const addedResponsibleIds = currentResponsibleIds.filter((userId) => !previousAssigneeSet.has(userId));
+
+            // Send notification if new responsibles were assigned
+            if (addedResponsibleIds.length > 0) {
                 try {
                     await fetch('/api/notify', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ taskId: id, type: 'task_assigned' }),
+                        body: JSON.stringify({ taskId: id, type: 'task_assigned', recipientIds: addedResponsibleIds }),
                     });
                 } catch (e) {
                     console.error('Bildirim gönderilemedi:', e);
@@ -238,17 +287,15 @@ export default function TaskEditPage({ params }: { params: Promise<{ id: string 
                             </Select>
                         </div>
 
-                        {/* Görevli */}
+                        {/* Görevliler */}
                         <div className="space-y-2">
-                            <Label>Görevli</Label>
-                            <Select value={currentResponsibleId} onValueChange={(v) => setResponsibleId(v)}>
-                                <SelectTrigger><SelectValue placeholder="Seçiniz" /></SelectTrigger>
-                                <SelectContent>
-                                    {responsibles?.map((user) => (
-                                        <SelectItem key={user.id} value={user.id}>{user.full_name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Label>Görevliler</Label>
+                            <AssigneePicker
+                                users={responsibles}
+                                selectedIds={currentResponsibleIds}
+                                onChange={setResponsibleIds}
+                                disabled={isSaving}
+                            />
                         </div>
 
                         {/* Son Tarih */}

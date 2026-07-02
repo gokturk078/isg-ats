@@ -200,7 +200,14 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
     const isAdmin = profile?.role === 'admin';
     const isInspector = profile?.role === 'inspector' && task.inspector_id === profile?.id;
-    const isResponsible = profile?.role === 'responsible' && task.responsible_id === profile?.id;
+    const assigneeProfiles = task.assignees
+        ?.map((assignee) => assignee.user)
+        .filter(Boolean) ?? [];
+    const assigneeNames = assigneeProfiles.length > 0
+        ? assigneeProfiles.map((user) => user?.full_name).filter(Boolean).join(', ')
+        : task.responsible?.full_name;
+    const isResponsible = profile?.role === 'responsible'
+        && (task.responsible_id === profile?.id || task.assignees?.some((assignee) => assignee.user_id === profile?.id));
     const canAct = isAdmin || isInspector || isResponsible;
     const overdue = task.due_date && isOverdue(task.due_date) && !['closed', 'completed', 'rejected'].includes(task.status);
 
@@ -243,7 +250,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <InfoRow icon={<MapPin className="h-4 w-4" />} label="Lokasyon" value={`${task.location?.name ?? '-'}${task.floor ? ' · Kat ' + task.floor : ''}`} />
                                 <InfoRow icon={<User className="h-4 w-4" />} label="Denetçi" value={task.inspector?.full_name ?? '-'} />
-                                <InfoRow icon={<User className="h-4 w-4" />} label="Görevli" value={task.responsible?.full_name ?? 'Atanmamış'} />
+                                <InfoRow icon={<User className="h-4 w-4" />} label="Görevliler" value={assigneeNames || 'Atanmamış'} />
                                 <InfoRow icon={<Calendar className="h-4 w-4" />} label="Oluşturulma" value={task.created_at ? formatDateTimeLong(task.created_at) : '-'} />
                                 <InfoRow icon={<Clock className="h-4 w-4" />} label="Son Tarih" value={task.due_date ? formatDateTimeLong(task.due_date) : '-'} highlight={!!overdue} />
                                 {task.category && (
@@ -562,10 +569,10 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
 function InfoRow({ icon, label, value, highlight }: { icon: React.ReactNode; label: string; value: string; highlight?: boolean }) {
     return (
-        <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">{icon}</span>
-            <span className="text-sm text-muted-foreground">{label}:</span>
-            <span className={`text-sm font-medium ${highlight ? 'text-destructive' : ''}`}>{value}</span>
+        <div className="flex items-start gap-2">
+            <span className="mt-0.5 text-muted-foreground">{icon}</span>
+            <span className="mt-0.5 shrink-0 text-sm text-muted-foreground">{label}:</span>
+            <span className={`min-w-0 text-sm font-medium ${highlight ? 'text-destructive' : ''}`}>{value}</span>
         </div>
     );
 }

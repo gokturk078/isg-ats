@@ -1,4 +1,4 @@
-# ISG-ATS Kurulum Rehberi
+# İSG Kurulum Rehberi
 
 ## 1. Supabase Projesi Oluştur
 

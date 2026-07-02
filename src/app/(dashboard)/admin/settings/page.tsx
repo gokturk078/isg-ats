@@ -16,14 +16,14 @@ export default function SettingsPage() {
                                 <p className="text-sm font-medium">Uygulama Adı</p>
                                 <p className="text-xs text-muted-foreground">Sistem genelinde görünen ad</p>
                             </div>
-                            <p className="text-sm font-mono">İSG-ATS</p>
+                            <p className="text-sm font-mono">İSG</p>
                         </div>
                         <div className="flex items-center justify-between py-3 border-b">
                             <div>
                                 <p className="text-sm font-medium">Email Gönderim</p>
                                 <p className="text-xs text-muted-foreground">Nodemailer + Gmail SMTP</p>
                             </div>
-                            <p className="text-sm font-mono">{process.env.NEXT_PUBLIC_APP_NAME ?? 'İSG-ATS'}</p>
+                            <p className="text-sm font-mono">{process.env.NEXT_PUBLIC_APP_NAME ?? 'İSG'}</p>
                         </div>
                         <div className="flex items-center justify-between py-3">
                             <div>

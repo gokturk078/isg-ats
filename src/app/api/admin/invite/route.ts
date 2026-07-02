@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
 
     const emailResult = await sendEmail({
       to: email,
-      subject: `🔐 İSG-ATS Hesabınız Oluşturuldu — Giriş Bilgileriniz`,
+      subject: `🔐 İSG Hesabınız Oluşturuldu — Giriş Bilgileriniz`,
       html,
     });
 

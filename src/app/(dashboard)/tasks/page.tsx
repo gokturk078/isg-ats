@@ -311,7 +311,9 @@ export default function TasksPage() {
                                                 <TableCell>
                                                     <TaskStatusBadge status={task.status} />
                                                 </TableCell>
-                                                <TableCell className="text-sm">{task.responsible?.full_name ?? '-'}</TableCell>
+                                                <TableCell className="max-w-48 text-sm">
+                                                    <span className="line-clamp-2">{getAssigneeNames(task)}</span>
+                                                </TableCell>
                                                 <TableCell>
                                                     {task.due_date ? (
                                                         <span className={`text-sm ${isOverdue(task.due_date) && !['closed', 'completed', 'rejected'].includes(task.status) ? 'text-destructive font-semibold' : ''}`}>
@@ -361,6 +363,7 @@ export default function TasksPage() {
                                                 <span>{task.location?.name ?? '-'}</span>
                                                 <SeverityBadge severity={task.severity} showStars={false} />
                                             </div>
+                                            <p className="mt-2 text-xs text-muted-foreground">Görevli: {getAssigneeNames(task)}</p>
                                         </CardContent>
                                     </Card>
                                 </Link>
@@ -402,6 +405,15 @@ export default function TasksPage() {
             />
         </>
     );
+}
+
+function getAssigneeNames(task: Task) {
+    const names = task.assignees
+        ?.map((assignee) => assignee.user?.full_name)
+        .filter(Boolean);
+
+    if (names && names.length > 0) return names.join(', ');
+    return task.responsible?.full_name ?? '-';
 }
 
 function StatusCounter({ label, count, color, textColor, active, onClick }: {

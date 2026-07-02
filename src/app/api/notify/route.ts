@@ -17,10 +17,11 @@ export async function POST(request: NextRequest) {
             .single();
 
         const body = await request.json();
-        const { taskId, type, rejectionReason } = body as {
+        const { taskId, type, rejectionReason, recipientIds } = body as {
             taskId: string;
             type: string;
             rejectionReason?: string;
+            recipientIds?: string[];
         };
 
         if (!taskId || !type) {
@@ -31,9 +32,10 @@ export async function POST(request: NextRequest) {
 
         const result = await createTaskNotification({
             taskId,
-            type: type as 'task_assigned' | 'task_completed' | 'task_closed' | 'task_created',
+            type: type as 'task_assigned' | 'task_completed' | 'task_closed' | 'task_created' | 'task_rejected',
             actorName: profile?.full_name ?? 'Kullanıcı',
             rejectionReason,
+            recipientIds,
         });
 
         console.log('[Notify API] Sonuç:', result);

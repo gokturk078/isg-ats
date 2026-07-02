@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email/mailer';
+import type { Database } from '@/types/database.types';
 
 type NotificationType =
     | 'task_assigned'
@@ -15,6 +16,12 @@ interface NotifyOptions {
     type: NotificationType;
     actorName?: string;
     rejectionReason?: string;
+    recipientIds?: string[];
+}
+
+interface NotificationProfile {
+    full_name: string;
+    email: string;
 }
 
 interface TaskData {
@@ -26,11 +33,14 @@ interface TaskData {
     status: string;
     inspector_id: string;
     responsible_id?: string;
-    inspector?: { full_name: string; email: string } | null;
-    responsible?: { full_name: string; email: string } | null;
+    inspector?: NotificationProfile | null;
+    responsible?: NotificationProfile | null;
+    assignees?: Array<{ user_id: string; user: NotificationProfile | null }>;
     location?: { name: string } | null;
     category?: { name: string } | null;
 }
+
+type DbNotificationType = Database['public']['Enums']['notification_type'];
 
 const SEVERITY_LABELS: Record<number, string> = {
     5: '★★★★★ İŞ DERHAL DURACAK',
@@ -50,7 +60,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export async function createTaskNotification(options: NotifyOptions) {
-    const { taskId, type, actorName, rejectionReason } = options;
+    const { taskId, type, actorName, rejectionReason, recipientIds } = options;
 
     try {
         const supabase = await createServiceClient();
@@ -90,16 +100,44 @@ export async function createTaskNotification(options: NotifyOptions) {
             categoryName = cat?.name ?? null;
         }
 
+        const { data: assignees, error: assigneesError } = await supabase
+            .from('task_assignees')
+            .select('user_id')
+            .eq('task_id', taskId);
+
+        if (assigneesError) {
+            console.error('[Bildirim] Görevli listesi alınamadı:', assigneesError.message);
+        }
+
+        const assigneeUserIds = Array.from(new Set((assignees ?? []).map((assignee) => assignee.user_id)));
+        const { data: assigneeProfiles } = assigneeUserIds.length > 0
+            ? await supabase.from('profiles').select('id, full_name, email').in('id', assigneeUserIds)
+            : { data: [] };
+        const assigneeProfilesById = new Map((assigneeProfiles ?? []).map((user) => [user.id, user]));
+
         const taskData: TaskData = {
-            ...(task as any),
+            id: task.id,
+            serial_number: task.serial_number,
+            title: task.title ?? undefined,
+            description: task.description,
+            severity: task.severity,
+            status: task.status ?? 'unassigned',
+            inspector_id: task.inspector_id,
+            responsible_id: task.responsible_id ?? undefined,
+            inspector: task.inspector,
+            responsible: task.responsible,
             location: locationName ? { name: locationName } : null,
             category: categoryName ? { name: categoryName } : null,
+            assignees: (assignees ?? []).map((assignee) => ({
+                user_id: assignee.user_id,
+                user: assigneeProfilesById.get(assignee.user_id) ?? null,
+            })),
         };
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://isg-ats.vercel.app';
         const taskUrl = `${appUrl}/tasks/${taskData.id}`;
 
         // Determine notification targets and content
-        const notifications = getNotificationConfig(type, taskData, actorName, rejectionReason);
+        const notifications = getNotificationConfig(type, taskData, actorName, rejectionReason, recipientIds);
 
         if (notifications.length === 0) {
             console.warn('[Bildirim] Gönderilecek bildirim hedefi yok:', type, taskId);
@@ -111,14 +149,13 @@ export async function createTaskNotification(options: NotifyOptions) {
         for (const notif of notifications) {
             // In-app notification — use the closest valid DB enum type
             const dbType = mapToDbType(type);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error: insertError } = await supabase.from('notifications').insert({
                 user_id: notif.userId,
                 task_id: taskId,
-                type: dbType as any,
+                type: dbType,
                 title: notif.title,
                 message: notif.message,
-            } as any);
+            });
 
             if (insertError) {
                 console.error('[Bildirim] DB insert hatası:', insertError.message, { userId: notif.userId, type: dbType });
@@ -162,8 +199,8 @@ export async function createTaskNotification(options: NotifyOptions) {
 }
 
 // Map our notification types to the DB enum values
-function mapToDbType(type: NotificationType): string {
-    const mapping: Record<string, string> = {
+function mapToDbType(type: NotificationType): DbNotificationType {
+    const mapping: Record<NotificationType, DbNotificationType> = {
         task_assigned: 'task_assigned',
         task_completed: 'task_completed',
         task_closed: 'task_closed',
@@ -179,17 +216,20 @@ function getNotificationConfig(
     type: NotificationType,
     task: TaskData,
     actorName?: string,
-    rejectionReason?: string
+    rejectionReason?: string,
+    recipientIds?: string[]
 ): Array<{ userId: string; email?: string; recipientName: string; title: string; message: string }> {
     const notifications: Array<{ userId: string; email?: string; recipientName: string; title: string; message: string }> = [];
+    const targetRecipientIds = recipientIds ? new Set(recipientIds) : null;
+    const assignees = getTaskAssignees(task).filter((assignee) => !targetRecipientIds || targetRecipientIds.has(assignee.userId));
 
     switch (type) {
         case 'task_assigned':
-            if (task.responsible_id && task.responsible) {
+            for (const assignee of assignees) {
                 notifications.push({
-                    userId: task.responsible_id,
-                    email: task.responsible.email,
-                    recipientName: task.responsible.full_name,
+                    userId: assignee.userId,
+                    email: assignee.email,
+                    recipientName: assignee.recipientName,
                     title: 'Yeni Görev Atandı',
                     message: `"${task.description.substring(0, 100)}${task.description.length > 100 ? '...' : ''}" görevi size atandı. Önem: ${SEVERITY_LABELS[task.severity] ?? task.severity}`,
                 });
@@ -211,11 +251,11 @@ function getNotificationConfig(
 
         case 'task_closed':
             // Notify responsible + inspector
-            if (task.responsible_id && task.responsible) {
+            for (const assignee of assignees) {
                 notifications.push({
-                    userId: task.responsible_id,
-                    email: task.responsible.email,
-                    recipientName: task.responsible.full_name,
+                    userId: assignee.userId,
+                    email: assignee.email,
+                    recipientName: assignee.recipientName,
                     title: 'Görev Kapatıldı',
                     message: `#${task.serial_number} numaralı görev başarıyla kapatıldı.${rejectionReason ? ' Not: ' + rejectionReason : ''} ✅`,
                 });
@@ -233,12 +273,12 @@ function getNotificationConfig(
 
         case 'task_rejected':
             // Notify responsible about rejection
-            if (task.responsible_id && task.responsible) {
+            for (const assignee of assignees) {
                 const taskLabel = task.title || task.description.substring(0, 80);
                 notifications.push({
-                    userId: task.responsible_id,
-                    email: task.responsible.email,
-                    recipientName: task.responsible.full_name,
+                    userId: assignee.userId,
+                    email: assignee.email,
+                    recipientName: assignee.recipientName,
                     title: 'Görev Reddedildi',
                     message: `#${task.serial_number} "${taskLabel}" görevi reddedildi.${rejectionReason ? ' Neden: ' + rejectionReason : ''} Lütfen düzelterek tekrar gönderin.`,
                 });
@@ -247,6 +287,30 @@ function getNotificationConfig(
     }
 
     return notifications;
+}
+
+function getTaskAssignees(task: TaskData): Array<{ userId: string; email?: string; recipientName: string }> {
+    const assignees = new Map<string, { userId: string; email?: string; recipientName: string }>();
+
+    for (const assignee of task.assignees ?? []) {
+        if (assignee.user_id && assignee.user) {
+            assignees.set(assignee.user_id, {
+                userId: assignee.user_id,
+                email: assignee.user.email,
+                recipientName: assignee.user.full_name,
+            });
+        }
+    }
+
+    if (task.responsible_id && task.responsible && !assignees.has(task.responsible_id)) {
+        assignees.set(task.responsible_id, {
+            userId: task.responsible_id,
+            email: task.responsible.email,
+            recipientName: task.responsible.full_name,
+        });
+    }
+
+    return Array.from(assignees.values());
 }
 
 function buildEmailHtml(opts: {
