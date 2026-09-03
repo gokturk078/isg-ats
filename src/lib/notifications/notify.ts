@@ -1,5 +1,8 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email/mailer';
+import type { Database } from '@/types/database.types';
+
+type DbNotificationType = Database['public']['Enums']['notification_type'];
 
 type NotificationType =
     | 'task_assigned'
@@ -91,7 +94,10 @@ export async function createTaskNotification(options: NotifyOptions) {
         }
 
         const taskData: TaskData = {
-            ...(task as any),
+            ...task,
+            title: task.title ?? undefined,
+            status: task.status ?? 'unassigned',
+            responsible_id: task.responsible_id ?? undefined,
             location: locationName ? { name: locationName } : null,
             category: categoryName ? { name: categoryName } : null,
         };
@@ -111,14 +117,13 @@ export async function createTaskNotification(options: NotifyOptions) {
         for (const notif of notifications) {
             // In-app notification — use the closest valid DB enum type
             const dbType = mapToDbType(type);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error: insertError } = await supabase.from('notifications').insert({
                 user_id: notif.userId,
                 task_id: taskId,
-                type: dbType as any,
+                type: dbType,
                 title: notif.title,
                 message: notif.message,
-            } as any);
+            });
 
             if (insertError) {
                 console.error('[Bildirim] DB insert hatası:', insertError.message, { userId: notif.userId, type: dbType });
@@ -162,8 +167,8 @@ export async function createTaskNotification(options: NotifyOptions) {
 }
 
 // Map our notification types to the DB enum values
-function mapToDbType(type: NotificationType): string {
-    const mapping: Record<string, string> = {
+function mapToDbType(type: NotificationType): DbNotificationType {
+    const mapping: Record<NotificationType, DbNotificationType> = {
         task_assigned: 'task_assigned',
         task_completed: 'task_completed',
         task_closed: 'task_closed',

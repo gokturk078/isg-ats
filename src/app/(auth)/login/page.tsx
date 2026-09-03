@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createClient } from '@/lib/supabase/client';
@@ -16,10 +16,26 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen grid place-items-center"><Loader2 className="h-6 w-6 animate-spin" /></div>}>
+            <LoginForm />
+        </Suspense>
+    );
+}
+
+function LoginForm() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const supabase = createClient();
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
+
+    const routeError = searchParams.get('error') === 'inactive'
+        ? 'Hesabınız yönetici tarafından pasif duruma alınmış. Lütfen yöneticinizle görüşün.'
+        : searchParams.get('error') === 'profile_missing'
+            ? 'Hesabınızın uygulama profili eksik. Süper yönetici profil onarma işlemini yapmalıdır.'
+            : '';
+    const displayedError = error || routeError;
 
     const {
         register,
@@ -32,7 +48,7 @@ export default function LoginPage() {
     const onSubmit = async (data: LoginInput) => {
         setError('');
 
-        const { error: authError } = await supabase.auth.signInWithPassword({
+        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
             email: data.email,
             password: data.password,
         });
@@ -40,14 +56,34 @@ export default function LoginPage() {
         if (authError) {
             if (authError.message.includes('Invalid login credentials')) {
                 setError('Email veya şifre hatalı. Lütfen tekrar deneyiniz.');
+            } else if (authError.message.toLocaleLowerCase('en-US').includes('banned')) {
+                setError('Hesabınız yönetici tarafından pasif duruma alınmış.');
             } else {
                 setError(authError.message);
             }
             return;
         }
 
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('is_active, must_change_password')
+            .eq('id', authData.user.id)
+            .maybeSingle();
+
+        if (profileError || !profile) {
+            await supabase.auth.signOut();
+            setError('Hesabınız var ancak uygulama profiliniz eksik. Süper yönetici profilinizi onarmalıdır.');
+            return;
+        }
+
+        if (!profile.is_active) {
+            await supabase.auth.signOut();
+            setError('Hesabınız yönetici tarafından pasif duruma alınmış.');
+            return;
+        }
+
         toast.success('Giriş başarılı!');
-        router.push('/dashboard');
+        router.push(profile.must_change_password ? '/set-password' : '/tasks');
         router.refresh();
     };
 
@@ -63,9 +99,9 @@ export default function LoginPage() {
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                        {error && (
+                        {displayedError && (
                             <Alert variant="destructive">
-                                <AlertDescription>{error}</AlertDescription>
+                                <AlertDescription>{displayedError}</AlertDescription>
                             </Alert>
                         )}
 

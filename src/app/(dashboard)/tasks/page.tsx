@@ -35,7 +35,7 @@ import { exportToExcel, exportToCsv } from '@/lib/utils/export';
 import { Plus, Search, Download, Eye, ClipboardList, AlertTriangle, Trash2 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import Link from 'next/link';
-import type { TaskStatus, Location, TaskCategory, Task } from '@/types';
+import type { TaskStatus, Location, TaskCategory } from '@/types';
 
 export default function TasksPage() {
     const supabase = createClient();

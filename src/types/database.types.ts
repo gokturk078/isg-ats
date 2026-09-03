@@ -166,6 +166,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_super_admin: boolean | null
+          must_change_password: boolean
           last_seen: string | null
           location_id: string | null
           phone: string | null
@@ -182,6 +183,7 @@ export type Database = {
           id: string
           is_active?: boolean | null
           is_super_admin?: boolean | null
+          must_change_password?: boolean
           last_seen?: string | null
           location_id?: string | null
           phone?: string | null
@@ -198,6 +200,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_super_admin?: boolean | null
+          must_change_password?: boolean
           last_seen?: string | null
           location_id?: string | null
           phone?: string | null
@@ -263,7 +266,7 @@ export type Database = {
           file_name: string
           file_size: number | null
           file_type: string | null
-          file_url: string
+          file_url: string | null
           id: string
           storage_path: string
           task_id: string
@@ -274,7 +277,7 @@ export type Database = {
           file_name: string
           file_size?: number | null
           file_type?: string | null
-          file_url: string
+          file_url?: string | null
           id?: string
           storage_path: string
           task_id: string
@@ -285,7 +288,7 @@ export type Database = {
           file_name?: string
           file_size?: number | null
           file_type?: string | null
-          file_url?: string
+          file_url?: string | null
           id?: string
           storage_path?: string
           task_id?: string

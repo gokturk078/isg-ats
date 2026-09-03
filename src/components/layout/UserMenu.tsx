@@ -16,9 +16,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useProfile } from '@/hooks/useProfile';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 export function UserMenu() {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const { data: profile, isLoading } = useProfile();
     const supabase = createClient();
 
@@ -28,6 +30,7 @@ export function UserMenu() {
             toast.error('Çıkış yapılırken hata oluştu');
             return;
         }
+        queryClient.clear();
         router.push('/login');
         router.refresh();
     };

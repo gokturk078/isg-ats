@@ -21,6 +21,7 @@ export default function SetPasswordPage() {
     const [showConfirm, setShowConfirm] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
+    const [passwordApplied, setPasswordApplied] = useState(false);
 
     const {
         register,
@@ -33,23 +34,34 @@ export default function SetPasswordPage() {
     const onSubmit = async (data: SetPasswordInput) => {
         setError('');
 
-        const { error: updateError } = await supabase.auth.updateUser({
-            password: data.password,
-        });
+        if (!passwordApplied) {
+            const { error: updateError } = await supabase.auth.updateUser({
+                password: data.password,
+            });
 
-        if (updateError) {
-            if (updateError.message.includes('should be different')) {
-                setError('Yeni şifre mevcut şifrenizden farklı olmalıdır.');
-            } else {
-                setError(updateError.message);
+            if (updateError) {
+                if (updateError.message.includes('should be different')) {
+                    setError('Yeni şifre mevcut şifrenizden farklı olmalıdır.');
+                } else {
+                    setError(updateError.message);
+                }
+                return;
             }
+
+            setPasswordApplied(true);
+        }
+
+        const finalizeResponse = await fetch('/api/auth/password-changed', { method: 'POST' });
+        const finalizeResult = await finalizeResponse.json().catch(() => ({}));
+        if (!finalizeResponse.ok) {
+            setError(finalizeResult.error || 'Şifreniz değişti ancak hesap durumu güncellenemedi. İşlemi tamamlamak için tekrar deneyin.');
             return;
         }
 
         setSuccess(true);
         toast.success('Şifreniz başarıyla belirlendi!');
         setTimeout(() => {
-            router.push('/dashboard');
+            router.push('/tasks');
             router.refresh();
         }, 2000);
     };
@@ -78,7 +90,7 @@ export default function SetPasswordPage() {
                                     Şifreniz Belirlendi!
                                 </p>
                                 <p className="text-sm text-muted-foreground mt-1">
-                                    Dashboard&apos;a yönlendiriliyorsunuz...
+                                    Görevler sayfasına yönlendiriliyorsunuz...
                                 </p>
                             </div>
                             <div className="flex items-center justify-center gap-2">
@@ -168,7 +180,7 @@ export default function SetPasswordPage() {
                                         Şifre belirleniyor...
                                     </>
                                 ) : (
-                                    'Şifremi Belirle'
+                                    passwordApplied ? 'İşlemi Tamamla' : 'Şifremi Belirle'
                                 )}
                             </Button>
                         </form>

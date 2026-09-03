@@ -22,6 +22,7 @@ export interface Profile {
     avatar_url?: string;
     is_active: boolean;
     is_super_admin?: boolean;
+    must_change_password: boolean;
     last_seen?: string;
     created_at: string;
     updated_at?: string;
@@ -78,6 +79,7 @@ export interface Task {
     location?: Location;
     category?: TaskCategory;
     photos?: TaskPhoto[];
+    attachments?: TaskAttachment[];
     actions?: TaskAction[];
 }
 
@@ -106,13 +108,28 @@ export interface TaskAction {
 export interface TaskAttachment {
     id: string;
     task_id: string;
-    file_url: string;
+    file_url?: string | null;
     storage_path: string;
     file_name: string;
     file_type?: string;
     file_size?: number;
     uploaded_by: string;
     created_at: string;
+}
+
+export interface AdminUserRecord {
+    id: string;
+    email: string;
+    full_name: string;
+    role: UserRole;
+    is_active: boolean;
+    is_super_admin: boolean;
+    must_change_password: boolean;
+    profile_exists: boolean;
+    email_confirmed: boolean;
+    banned_until?: string | null;
+    created_at: string;
+    last_sign_in_at?: string | null;
 }
 
 export interface Notification {

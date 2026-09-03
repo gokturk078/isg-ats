@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from 'react-hook-form';
+import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { TaskFilePicker } from '@/components/tasks/TaskFilePicker';
 import {
     Select,
     SelectContent,
@@ -25,16 +26,15 @@ import {
 import { SEVERITY_CONFIG, calculateDueDate } from '@/types';
 import type { Location, TaskCategory, Profile } from '@/types';
 import { toast } from 'sonner';
-import { MapPin, AlertTriangle, Camera, FileText, ChevronLeft, ChevronRight, Loader2, Upload, X, ImageIcon } from 'lucide-react';
+import { MapPin, AlertTriangle, Paperclip, FileText, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { uploadTaskFile, type SelectedTaskFile } from '@/lib/uploads/task-files';
 
 const STEPS = [
     { title: 'Lokasyon', icon: MapPin },
     { title: 'Risk Bilgisi', icon: AlertTriangle },
-    { title: 'Fotoğraf', icon: Camera },
+    { title: 'Dosyalar', icon: Paperclip },
     { title: 'Detaylar', icon: FileText },
 ];
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 export default function NewTaskPage() {
     const router = useRouter();
@@ -42,12 +42,10 @@ export default function NewTaskPage() {
     const queryClient = useQueryClient();
     const { data: profile } = useProfile();
     const [step, setStep] = useState(0);
-    const [photos, setPhotos] = useState<File[]>([]);
-    const [previews, setPreviews] = useState<string[]>([]);
+    const [files, setFiles] = useState<SelectedTaskFile[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<TaskCreateInput>({
+    const { register, handleSubmit, setValue, watch, trigger, formState: { errors } } = useForm<TaskCreateInput>({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         resolver: zodResolver(taskCreateSchema) as any,
         defaultValues: { detection_method: 'Saha Gözlem' },
@@ -79,32 +77,11 @@ export default function NewTaskPage() {
 
     const watchSeverity = watch('severity');
 
-    const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
-        const oversized = files.filter((f) => f.size > MAX_FILE_SIZE);
-        if (oversized.length > 0) {
-            toast.error(`${oversized.length} dosya 10MB limitini aşıyor`);
+    const onSubmit = async (data: TaskCreateInput) => {
+        if (!profile) {
+            toast.error('Kullanıcı profiliniz yüklenemedi. Lütfen yeniden giriş yapın.');
             return;
         }
-        const validFiles = files.filter((f) => f.size <= MAX_FILE_SIZE);
-        setPhotos((prev) => [...prev, ...validFiles]);
-        validFiles.forEach((file) => {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                setPreviews((prev) => [...prev, ev.target?.result as string]);
-            };
-            reader.readAsDataURL(file);
-        });
-        e.target.value = '';
-    }, []);
-
-    const removePhoto = (index: number) => {
-        setPhotos((prev) => prev.filter((_, i) => i !== index));
-        setPreviews((prev) => prev.filter((_, i) => i !== index));
-    };
-
-    const onSubmit = async (data: TaskCreateInput) => {
-        if (!profile) return;
         setIsSubmitting(true);
 
         try {
@@ -132,29 +109,35 @@ export default function NewTaskPage() {
 
             if (taskError) throw taskError;
 
-            // Upload photos
-            for (const photo of photos) {
-                const ext = photo.name.split('.').pop();
-                const path = `${task.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-                const { error: uploadError } = await supabase.storage
-                    .from('task-photos')
-                    .upload(path, photo);
-
-                if (!uploadError) {
-                    const { data: urlData } = supabase.storage.from('task-photos').getPublicUrl(path);
-                    await supabase.from('task_photos').insert({
-                        task_id: task.id,
-                        photo_url: urlData.publicUrl,
-                        storage_path: path,
-                        photo_type: 'before',
-                        uploaded_by: profile.id,
-                        file_size: photo.size,
+            const failedUploads: string[] = [];
+            for (const item of files) {
+                setFiles((current) => current.map((file) => file.id === item.id
+                    ? { ...file, status: 'uploading', progress: 0, error: undefined }
+                    : file));
+                try {
+                    await uploadTaskFile({
+                        supabase,
+                        item,
+                        taskId: task.id,
+                        userId: profile.id,
+                        photoType: 'before',
+                        onProgress: (progress) => setFiles((current) => current.map((file) => file.id === item.id
+                            ? { ...file, progress }
+                            : file)),
                     });
+                    setFiles((current) => current.map((file) => file.id === item.id
+                        ? { ...file, status: 'success', progress: 100 }
+                        : file));
+                } catch (uploadError) {
+                    const message = uploadError instanceof Error ? uploadError.message : 'Yükleme başarısız.';
+                    failedUploads.push(item.file.name);
+                    setFiles((current) => current.map((file) => file.id === item.id
+                        ? { ...file, status: 'error', error: message }
+                        : file));
                 }
             }
 
-            queryClient.invalidateQueries({ queryKey: ['tasks'] });
-            toast.success('Görev başarıyla oluşturuldu');
+            await queryClient.invalidateQueries({ queryKey: ['tasks'] });
 
             // Send notification to assigned responsible — MUST complete before navigation
             if (data.responsible_id) {
@@ -164,14 +147,22 @@ export default function NewTaskPage() {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ taskId: task.id, type: 'task_assigned' }),
                     });
-                    const result = await res.json();
-                    console.log('[Bildirim] Sonuç:', result);
+                    if (!res.ok) throw new Error('Bildirim servisi hatası');
                 } catch (e) {
                     console.error('Bildirim gönderilemedi:', e);
+                    toast.warning('Görev oluşturuldu ancak atama bildirimi gönderilemedi.');
                 }
             }
 
-            // Navigate AFTER notification is sent
+            if (failedUploads.length > 0) {
+                toast.warning('Görev oluşturuldu; bazı dosyalar yüklenemedi.', {
+                    description: `${failedUploads.slice(0, 3).join(', ')}${failedUploads.length > 3 ? '…' : ''}. Görev detayından yeniden ekleyebilirsiniz.`,
+                    duration: 8000,
+                });
+            } else {
+                toast.success('Görev ve dosyalar başarıyla oluşturuldu.');
+            }
+
             router.push(`/tasks/${task.id}`);
         } catch (error) {
             console.error('Görev oluşturulamadı:', error);
@@ -181,8 +172,25 @@ export default function NewTaskPage() {
         }
     };
 
-    const nextStep = () => { if (step < 3) setStep(step + 1); };
+    const nextStep = async () => {
+        const fieldsByStep: Record<number, Array<keyof TaskCreateInput>> = {
+            0: ['title', 'location_id'],
+            1: ['category_id'],
+            2: [],
+            3: ['description', 'severity'],
+        };
+        const fields = fieldsByStep[step];
+        const valid = fields.length === 0 || await trigger(fields, { shouldFocus: true });
+        if (valid && step < 3) setStep(step + 1);
+    };
     const prevStep = () => { if (step > 0) setStep(step - 1); };
+
+    const handleInvalidSubmit = (formErrors: FieldErrors<TaskCreateInput>) => {
+        if (formErrors.title || formErrors.location_id) setStep(0);
+        else if (formErrors.category_id) setStep(1);
+        else setStep(3);
+        toast.error('Lütfen zorunlu alanları tamamlayın.');
+    };
 
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
@@ -200,7 +208,8 @@ export default function NewTaskPage() {
                     {STEPS.map((s, i) => (
                         <button
                             key={i}
-                            onClick={() => setStep(i)}
+                            type="button"
+                            onClick={() => i <= step && setStep(i)}
                             className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${i === step ? 'text-primary' : i < step ? 'text-green-600' : 'text-muted-foreground'
                                 }`}
                         >
@@ -212,7 +221,7 @@ export default function NewTaskPage() {
                 <Progress value={((step + 1) / STEPS.length) * 100} className="h-1.5" />
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)}>
+            <form onSubmit={handleSubmit(onSubmit, handleInvalidSubmit)}>
                 {/* Step 1: Lokasyon */}
                 {step === 0 && (
                     <Card>
@@ -242,7 +251,7 @@ export default function NewTaskPage() {
                                 </Select>
                                 {errors.location_id && <p className="text-sm text-destructive">{errors.location_id.message}</p>}
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label>Kat</Label>
                                     <Input placeholder="Ör: Zemin, 1, Bodrum" {...register('floor')} />
@@ -305,48 +314,19 @@ export default function NewTaskPage() {
                     </Card>
                 )}
 
-                {/* Step 3: Fotoğraf */}
+                {/* Step 3: Fotoğraf ve dosyalar */}
                 {step === 2 && (
                     <Card>
                         <CardHeader>
                             <CardTitle className="text-lg flex items-center gap-2">
-                                <Camera className="h-5 w-5" /> Fotoğraf Yükleme
+                                <Paperclip className="h-5 w-5" /> Fotoğraf ve Dosyalar
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div
-                                className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                                onClick={() => fileInputRef.current?.click()}
-                            >
-                                <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                                <p className="text-sm font-medium">Fotoğraf eklemek için tıklayın</p>
-                                <p className="text-xs text-muted-foreground mt-1">JPEG, PNG, WebP, HEIC (maks. 10MB)</p>
-                            </div>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*,image/heic"
-                                capture="environment"
-                                multiple
-                                className="hidden"
-                                onChange={handleFileChange}
-                            />
-                            {previews.length > 0 && (
-                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                                    {previews.map((preview, index) => (
-                                        <div key={index} className="relative aspect-square rounded-lg overflow-hidden border">
-                                            <img src={preview} alt={`Fotoğraf ${index + 1}`} className="w-full h-full object-cover" />
-                                            <button
-                                                type="button"
-                                                onClick={() => removePhoto(index)}
-                                                className="absolute top-1 right-1 h-6 w-6 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center"
-                                            >
-                                                <X className="h-3 w-3" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            <p className="text-sm text-muted-foreground">
+                                Telefonda kamera veya galeriyi ayrı seçebilir; bilgisayarda fotoğraf, PDF, Word ve Excel dosyası ekleyebilirsiniz.
+                            </p>
+                            <TaskFilePicker files={files} onChange={setFiles} disabled={isSubmitting} />
                         </CardContent>
                     </Card>
                 )}
@@ -426,16 +406,16 @@ export default function NewTaskPage() {
                 )}
 
                 {/* Navigation Buttons */}
-                <div className="flex items-center justify-between mt-6">
-                    <Button type="button" variant="outline" onClick={prevStep} disabled={step === 0}>
+                <div className="mt-6 grid grid-cols-2 gap-3 sm:flex sm:items-center sm:justify-between">
+                    <Button type="button" variant="outline" className="min-h-11" onClick={prevStep} disabled={step === 0 || isSubmitting}>
                         <ChevronLeft className="mr-1 h-4 w-4" /> Geri
                     </Button>
                     {step < 3 ? (
-                        <Button type="button" onClick={nextStep}>
+                        <Button type="button" className="min-h-11" onClick={nextStep} disabled={isSubmitting}>
                             İleri <ChevronRight className="ml-1 h-4 w-4" />
                         </Button>
                     ) : (
-                        <Button type="submit" disabled={isSubmitting}>
+                        <Button type="submit" className="min-h-11" disabled={isSubmitting}>
                             {isSubmitting ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Oluşturuluyor...

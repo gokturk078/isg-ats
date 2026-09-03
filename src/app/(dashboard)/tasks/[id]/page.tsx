@@ -1,6 +1,7 @@
 'use client';
 
-import { use, useState, useRef, useCallback } from 'react';
+import { use, useState } from 'react';
+import NextImage from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useTask } from '@/hooks/useTask';
 import { useProfile } from '@/hooks/useProfile';
@@ -11,6 +12,7 @@ import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { TaskStatusBadge } from '@/components/tasks/TaskStatusBadge';
 import { SeverityBadge } from '@/components/tasks/SeverityBadge';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { TaskFilePicker } from '@/components/tasks/TaskFilePicker';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -23,11 +25,12 @@ import { formatDateTimeLong, formatRelative, isOverdue } from '@/lib/utils/date'
 import { toast } from 'sonner';
 import {
     MapPin, User, Calendar, Clock, AlertTriangle, Send,
-    CheckCircle, XCircle, Play, Lock, MessageSquare, Image,
-    Upload, X, Loader2, Camera, FileDown,
+    CheckCircle, XCircle, Play, Lock, MessageSquare, ImageIcon,
+    Loader2, FileDown, Paperclip, Download,
 } from 'lucide-react';
-import type { TaskStatus } from '@/types';
+import type { TaskAttachment, TaskStatus } from '@/types';
 import { generateTaskPdf } from '@/lib/utils/generate-task-pdf';
+import { formatFileSize, uploadTaskFile, type SelectedTaskFile } from '@/lib/uploads/task-files';
 
 async function sendNotification(taskId: string, type: string, rejectionReason?: string) {
     try {
@@ -56,10 +59,25 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
     const [completionNote, setCompletionNote] = useState('');
     const [pdfLoading, setPdfLoading] = useState(false);
-    const [completionPhotos, setCompletionPhotos] = useState<File[]>([]);
-    const [completionPreviews, setCompletionPreviews] = useState<string[]>([]);
+    const [completionFiles, setCompletionFiles] = useState<SelectedTaskFile[]>([]);
     const [isCompleting, setIsCompleting] = useState(false);
-    const completionFileRef = useRef<HTMLInputElement>(null);
+    const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
+    const [mediaFiles, setMediaFiles] = useState<SelectedTaskFile[]>([]);
+    const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+    const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null);
+
+    const closeCompletionDialog = () => {
+        completionFiles.forEach((file) => file.previewUrl && URL.revokeObjectURL(file.previewUrl));
+        setCompletionFiles([]);
+        setCompletionNote('');
+        setCompleteDialogOpen(false);
+    };
+
+    const closeMediaDialog = () => {
+        mediaFiles.forEach((file) => file.previewUrl && URL.revokeObjectURL(file.previewUrl));
+        setMediaFiles([]);
+        setMediaDialogOpen(false);
+    };
 
     const updateStatus = useMutation({
         mutationFn: async ({ status, extra }: { status: TaskStatus; extra?: Record<string, unknown> }) => {
@@ -105,71 +123,51 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
         onError: () => toast.error('Yorum eklenemedi'),
     });
 
-    // Completion photo handlers
-    const handleCompletionPhoto = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
-        const validFiles = files.filter((f) => f.size <= 10 * 1024 * 1024);
-        if (validFiles.length < files.length) {
-            toast.error('Bazı dosyalar 10MB limitini aşıyor');
-        }
-        setCompletionPhotos((prev) => [...prev, ...validFiles]);
-        validFiles.forEach((file) => {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                setCompletionPreviews((prev) => [...prev, ev.target?.result as string]);
-            };
-            reader.readAsDataURL(file);
-        });
-        e.target.value = '';
-    }, []);
-
-    const removeCompletionPhoto = (index: number) => {
-        setCompletionPhotos((prev) => prev.filter((_, i) => i !== index));
-        setCompletionPreviews((prev) => prev.filter((_, i) => i !== index));
-    };
-
     const handleComplete = async () => {
         if (!profile || !completionNote.trim()) {
             toast.error('Tamamlama notu zorunludur');
             return;
         }
-        if (completionPhotos.length === 0) {
+        if (completionFiles.length === 0) {
             toast.error('En az bir tamamlama fotoğrafı yükleyin');
             return;
         }
 
         setIsCompleting(true);
         try {
-            // Upload "after" photos
-            for (const photo of completionPhotos) {
-                const ext = photo.name.split('.').pop();
-                const path = `${id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-                const { error: uploadError } = await supabase.storage
-                    .from('task-photos')
-                    .upload(path, photo);
-
-                if (!uploadError) {
-                    const { data: urlData } = supabase.storage.from('task-photos').getPublicUrl(path);
-                    await supabase.from('task_photos').insert({
-                        task_id: id,
-                        photo_url: urlData.publicUrl,
-                        storage_path: path,
-                        photo_type: 'after',
-                        uploaded_by: profile.id,
-                        file_size: photo.size,
+            let uploadFailed = false;
+            for (const item of completionFiles.filter((file) => file.status !== 'success')) {
+                setCompletionFiles((current) => current.map((file) => file.id === item.id
+                    ? { ...file, status: 'uploading', progress: 0, error: undefined }
+                    : file));
+                try {
+                    await uploadTaskFile({
+                        supabase,
+                        item,
+                        taskId: id,
+                        userId: profile.id,
+                        photoType: 'after',
+                        onProgress: (progress) => setCompletionFiles((current) => current.map((file) => file.id === item.id
+                            ? { ...file, progress }
+                            : file)),
                     });
+                    setCompletionFiles((current) => current.map((file) => file.id === item.id
+                        ? { ...file, status: 'success', progress: 100 }
+                        : file));
+                } catch (uploadError) {
+                    uploadFailed = true;
+                    const message = uploadError instanceof Error ? uploadError.message : 'Yükleme başarısız.';
+                    setCompletionFiles((current) => current.map((file) => file.id === item.id
+                        ? { ...file, status: 'error', error: message }
+                        : file));
                 }
             }
 
-            // Add completion note as action
-            await supabase.from('task_actions').insert({
-                task_id: id,
-                user_id: profile.id,
-                comment: `✅ Görev tamamlandı: ${completionNote.trim()}`,
-                is_system: false,
-            });
+            if (uploadFailed) {
+                toast.error('Tamamlama fotoğraflarından bazıları yüklenemedi. Hatalı dosyaları yeniden deneyin.');
+                return;
+            }
 
-            // Update task status
             const { error } = await supabase.from('tasks').update({
                 status: 'completed',
                 completed_at: new Date().toISOString(),
@@ -177,13 +175,21 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
             if (error) throw error;
 
+            const { error: noteError } = await supabase.from('task_actions').insert({
+                task_id: id,
+                user_id: profile.id,
+                comment: `✅ Görev tamamlandı: ${completionNote.trim()}`,
+                is_system: false,
+            });
+            if (noteError) {
+                console.error('Tamamlama notu eklenemedi:', noteError);
+                toast.warning('Görev tamamlandı ancak tamamlama notu kaydedilemedi.');
+            }
+
             queryClient.invalidateQueries({ queryKey: ['task', id] });
             queryClient.invalidateQueries({ queryKey: ['tasks'] });
             toast.success('Görev tamamlandı!');
-            setCompleteDialogOpen(false);
-            setCompletionNote('');
-            setCompletionPhotos([]);
-            setCompletionPreviews([]);
+            closeCompletionDialog();
 
             // Notify admin/inspector
             await sendNotification(id, 'task_completed');
@@ -192,6 +198,74 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
             toast.error('Görev tamamlanırken hata oluştu');
         } finally {
             setIsCompleting(false);
+        }
+    };
+
+    const handleMediaUpload = async () => {
+        if (!profile || !task || mediaFiles.length === 0) return;
+        setIsUploadingMedia(true);
+        let failed = 0;
+
+        try {
+            for (const item of mediaFiles.filter((file) => file.status !== 'success')) {
+                setMediaFiles((current) => current.map((file) => file.id === item.id
+                    ? { ...file, status: 'uploading', progress: 0, error: undefined }
+                    : file));
+                try {
+                    await uploadTaskFile({
+                        supabase,
+                        item,
+                        taskId: id,
+                        userId: profile.id,
+                        photoType: 'before',
+                        onProgress: (progress) => setMediaFiles((current) => current.map((file) => file.id === item.id
+                            ? { ...file, progress }
+                            : file)),
+                    });
+                    setMediaFiles((current) => current.map((file) => file.id === item.id
+                        ? { ...file, status: 'success', progress: 100 }
+                        : file));
+                } catch (uploadError) {
+                    failed += 1;
+                    const message = uploadError instanceof Error ? uploadError.message : 'Yükleme başarısız.';
+                    setMediaFiles((current) => current.map((file) => file.id === item.id
+                        ? { ...file, status: 'error', error: message }
+                        : file));
+                }
+            }
+
+            await queryClient.invalidateQueries({ queryKey: ['task', id] });
+            if (failed > 0) {
+                toast.error(`${failed} dosya yüklenemedi. Hatalı dosyaları yeniden deneyin.`);
+            } else {
+                closeMediaDialog();
+                toast.success('Fotoğraf ve dosyalar eklendi.');
+            }
+        } finally {
+            setIsUploadingMedia(false);
+        }
+    };
+
+    const downloadAttachment = async (attachment: TaskAttachment) => {
+        setDownloadingAttachmentId(attachment.id);
+        try {
+            const { data, error } = await supabase.storage
+                .from('task-attachments')
+                .createSignedUrl(attachment.storage_path, 60, { download: attachment.file_name });
+            if (error || !data.signedUrl) throw error ?? new Error('İndirme bağlantısı oluşturulamadı.');
+
+            const anchor = document.createElement('a');
+            anchor.href = data.signedUrl;
+            anchor.rel = 'noopener';
+            anchor.download = attachment.file_name;
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+        } catch (downloadError) {
+            console.error('Ek dosya indirilemedi:', downloadError);
+            toast.error('Güvenli indirme bağlantısı oluşturulamadı.');
+        } finally {
+            setDownloadingAttachmentId(null);
         }
     };
 
@@ -220,7 +294,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Sol: Detay */}
-                <div className="lg:col-span-2 space-y-6">
+                <div className="order-2 space-y-6 lg:order-1 lg:col-span-2">
                     {/* Ana Bilgiler */}
                     <Card>
                         <CardHeader>
@@ -279,7 +353,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                         <Card>
                             <CardHeader>
                                 <CardTitle className="text-base flex items-center gap-2">
-                                    <Image className="h-4 w-4" /> Fotoğraflar ({(task.photos?.length ?? 0)})
+                                    <ImageIcon className="h-4 w-4" /> Fotoğraflar ({(task.photos?.length ?? 0)})
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
@@ -289,7 +363,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                             {beforePhotos.map((photo) => (
                                                 <a key={photo.id} href={photo.photo_url} target="_blank" rel="noopener noreferrer" className="relative aspect-square rounded-lg overflow-hidden border hover:opacity-90 transition-opacity">
-                                                    <img src={photo.photo_url} alt={photo.caption || 'Tespit fotoğrafı'} className="w-full h-full object-cover" />
+                                                    <NextImage src={photo.photo_url} alt={photo.caption || 'Tespit fotoğrafı'} fill sizes="(max-width: 640px) 50vw, 220px" className="object-cover" />
                                                     <Badge className="absolute bottom-1 right-1 text-[10px]" variant="secondary">Önce</Badge>
                                                 </a>
                                             ))}
@@ -302,13 +376,49 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                             {afterPhotos.map((photo) => (
                                                 <a key={photo.id} href={photo.photo_url} target="_blank" rel="noopener noreferrer" className="relative aspect-square rounded-lg overflow-hidden border hover:opacity-90 transition-opacity">
-                                                    <img src={photo.photo_url} alt={photo.caption || 'Tamamlama fotoğrafı'} className="w-full h-full object-cover" />
+                                                    <NextImage src={photo.photo_url} alt={photo.caption || 'Tamamlama fotoğrafı'} fill sizes="(max-width: 640px) 50vw, 220px" className="object-cover" />
                                                     <Badge className="absolute bottom-1 right-1 text-[10px] bg-green-600">Sonra</Badge>
                                                 </a>
                                             ))}
                                         </div>
                                     </div>
                                 )}
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {(task.attachments?.length ?? 0) > 0 && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                    <Paperclip className="h-4 w-4" /> Ek Dosyalar ({task.attachments?.length ?? 0})
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                                {task.attachments?.map((attachment) => (
+                                    <div key={attachment.id} className="flex min-w-0 items-center gap-3 rounded-lg border p-3">
+                                        <Paperclip className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                        <div className="min-w-0 flex-1">
+                                            <p className="truncate text-sm font-medium" title={attachment.file_name}>{attachment.file_name}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {attachment.file_size ? formatFileSize(attachment.file_size) : 'Boyut bilinmiyor'}
+                                            </p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="min-h-10 shrink-0"
+                                            disabled={downloadingAttachmentId === attachment.id}
+                                            onClick={() => void downloadAttachment(attachment)}
+                                        >
+                                            {downloadingAttachmentId === attachment.id
+                                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                : <Download className="h-4 w-4" />}
+                                            <span className="sr-only">{attachment.file_name} dosyasını indir</span>
+                                        </Button>
+                                    </div>
+                                ))}
                             </CardContent>
                         </Card>
                     )}
@@ -368,40 +478,46 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                 </div>
 
                 {/* Sağ: Durum & Aksiyonlar */}
-                <div className="space-y-4">
-                    <Card>
+                <div className="order-1 space-y-4 lg:order-2">
+                    <Card className="lg:sticky lg:top-20">
                         <CardHeader>
                             <CardTitle className="text-base">Aksiyonlar</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2">
                             {/* Görevli Aksiyonları */}
                             {(isResponsible || isAdmin) && ['open', 'rejected'].includes(task.status) && (
-                                <Button className="w-full" onClick={() => updateStatus.mutate({ status: 'in_progress' })}>
+                                <Button className="min-h-11 w-full" disabled={updateStatus.isPending} onClick={() => updateStatus.mutate({ status: 'in_progress' })}>
                                     <Play className="mr-2 h-4 w-4" /> Devam Ediyorum
                                 </Button>
                             )}
                             {(isResponsible || isAdmin) && ['open', 'in_progress', 'rejected'].includes(task.status) && (
-                                <Button className="w-full" variant="outline" onClick={() => setCompleteDialogOpen(true)}>
+                                <Button className="min-h-11 w-full" variant="outline" onClick={() => setCompleteDialogOpen(true)}>
                                     <CheckCircle className="mr-2 h-4 w-4" /> Tamamlandı
                                 </Button>
                             )}
 
                             {/* Admin Aksiyonları */}
                             {isAdmin && task.status === 'completed' && (
-                                <Button className="w-full" onClick={() => setConfirmAction({ type: 'close', title: 'Görevi Kapat', desc: 'Bu görev kapatılacak. Emin misiniz?' })}>
+                                <Button className="min-h-11 w-full" onClick={() => setConfirmAction({ type: 'close', title: 'Görevi Kapat', desc: 'Bu görev kapatılacak. Emin misiniz?' })}>
                                     <Lock className="mr-2 h-4 w-4" /> Görevi Kapat
                                 </Button>
                             )}
                             {isAdmin && !['closed', 'rejected'].includes(task.status) && (
-                                <Button className="w-full" variant="destructive" onClick={() => setConfirmAction({ type: 'reject', title: 'Görevi Reddet', desc: 'Bu görev reddedilecek. Red nedenini yazınız.' })}>
+                                <Button className="min-h-11 w-full" variant="destructive" disabled={updateStatus.isPending} onClick={() => setConfirmAction({ type: 'reject', title: 'Görevi Reddet', desc: 'Bu görev reddedilecek. Red nedenini yazınız.' })}>
                                     <XCircle className="mr-2 h-4 w-4" /> Reddet
                                 </Button>
                             )}
 
                             {/* Düzenle */}
                             {(isAdmin || isInspector) && task.status !== 'closed' && (
-                                <Button className="w-full" variant="outline" onClick={() => router.push(`/tasks/${id}/edit`)}>
+                                <Button className="min-h-11 w-full" variant="outline" onClick={() => router.push(`/tasks/${id}/edit`)}>
                                     Düzenle
+                                </Button>
+                            )}
+
+                            {canAct && task.status !== 'closed' && (
+                                <Button className="min-h-11 w-full" variant="outline" onClick={() => setMediaDialogOpen(true)}>
+                                    <Paperclip className="mr-2 h-4 w-4" /> Fotoğraf / Dosya Ekle
                                 </Button>
                             )}
 
@@ -411,7 +527,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
                             <Separator />
                             <Button
-                                className="w-full"
+                                className="min-h-11 w-full"
                                 variant="outline"
                                 disabled={pdfLoading}
                                 onClick={async () => {
@@ -439,8 +555,11 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
             </div>
 
             {/* Completion Dialog */}
-            <Dialog open={completeDialogOpen} onOpenChange={setCompleteDialogOpen}>
-                <DialogContent className="max-w-lg">
+            <Dialog open={completeDialogOpen} onOpenChange={(open) => {
+                if (open) setCompleteDialogOpen(true);
+                else if (!isCompleting) closeCompletionDialog();
+            }}>
+                <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-lg overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <CheckCircle className="h-5 w-5 text-green-600" /> Görevi Tamamla
@@ -450,44 +569,14 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
-                        {/* Photo Upload */}
                         <div className="space-y-2">
-                            <Label className="flex items-center gap-1">
-                                <Camera className="h-4 w-4" /> Tamamlama Fotoğrafı *
-                            </Label>
-                            <div
-                                className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-green-500/50 transition-colors"
-                                onClick={() => completionFileRef.current?.click()}
-                            >
-                                <Upload className="h-6 w-6 text-muted-foreground mx-auto mb-1" />
-                                <p className="text-sm font-medium">Fotoğraf ekle</p>
-                                <p className="text-xs text-muted-foreground">İşin tamamlandığını gösteren fotoğraf</p>
-                            </div>
-                            <input
-                                ref={completionFileRef}
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                multiple
-                                className="hidden"
-                                onChange={handleCompletionPhoto}
+                            <Label>Tamamlama Fotoğrafı *</Label>
+                            <TaskFilePicker
+                                files={completionFiles}
+                                onChange={setCompletionFiles}
+                                allowAttachments={false}
+                                disabled={isCompleting}
                             />
-                            {completionPreviews.length > 0 && (
-                                <div className="grid grid-cols-3 gap-2">
-                                    {completionPreviews.map((preview, index) => (
-                                        <div key={index} className="relative aspect-square rounded-lg overflow-hidden border">
-                                            <img src={preview} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" />
-                                            <button
-                                                type="button"
-                                                onClick={() => removeCompletionPhoto(index)}
-                                                className="absolute top-1 right-1 h-5 w-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center"
-                                            >
-                                                <X className="h-3 w-3" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
                         </div>
 
                         {/* Completion Note */}
@@ -502,10 +591,10 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                         </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setCompleteDialogOpen(false)}>İptal</Button>
+                        <Button variant="outline" onClick={closeCompletionDialog} disabled={isCompleting}>İptal</Button>
                         <Button
                             onClick={handleComplete}
-                            disabled={isCompleting || !completionNote.trim() || completionPhotos.length === 0}
+                            disabled={isCompleting || !completionNote.trim() || completionFiles.length === 0}
                             className="bg-green-600 hover:bg-green-700"
                         >
                             {isCompleting ? (
@@ -513,6 +602,34 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                             ) : (
                                 <><CheckCircle className="mr-2 h-4 w-4" /> Tamamla</>
                             )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={mediaDialogOpen} onOpenChange={(open) => {
+                if (open) setMediaDialogOpen(true);
+                else if (!isUploadingMedia) closeMediaDialog();
+            }}>
+                <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-xl overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Fotoğraf veya dosya ekle</DialogTitle>
+                        <DialogDescription>
+                            Fotoğraflar görev kanıtlarında görünür; PDF, Word ve Excel dosyaları güvenli ek olarak saklanır.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <TaskFilePicker
+                        files={mediaFiles}
+                        onChange={setMediaFiles}
+                        allowPhotos={isAdmin || isInspector}
+                        allowAttachments={canAct}
+                        disabled={isUploadingMedia}
+                    />
+                    <DialogFooter>
+                        <Button variant="outline" onClick={closeMediaDialog} disabled={isUploadingMedia}>İptal</Button>
+                        <Button onClick={handleMediaUpload} disabled={isUploadingMedia || mediaFiles.length === 0}>
+                            {isUploadingMedia && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Dosyaları yükle
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -528,7 +645,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                 loading={updateStatus.isPending}
             />
             <Dialog open={confirmAction?.type === 'reject'} onOpenChange={(open) => { if (!open) { setConfirmAction(null); setRejectReason(''); } }}>
-                <DialogContent>
+                <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Görevi Reddet</DialogTitle>
                         <DialogDescription>Bu görev reddedilecek. Lütfen red nedenini yazınız.</DialogDescription>
@@ -562,10 +679,10 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
 function InfoRow({ icon, label, value, highlight }: { icon: React.ReactNode; label: string; value: string; highlight?: boolean }) {
     return (
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-start gap-2">
             <span className="text-muted-foreground">{icon}</span>
             <span className="text-sm text-muted-foreground">{label}:</span>
-            <span className={`text-sm font-medium ${highlight ? 'text-destructive' : ''}`}>{value}</span>
+            <span className={`min-w-0 break-words text-sm font-medium ${highlight ? 'text-destructive' : ''}`}>{value}</span>
         </div>
     );
 }

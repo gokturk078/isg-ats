@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import type { Task } from '@/types';
 import { SEVERITY_CONFIG, STATUS_CONFIG } from '@/types';
@@ -43,36 +42,35 @@ function transformTasksForExport(tasks: Task[]): ExportTask[] {
     }));
 }
 
-export function exportToExcel(tasks: Task[], filename = 'gorevler'): void {
+export async function exportToExcel(tasks: Task[], filename = 'gorevler'): Promise<void> {
     const data = transformTasksForExport(tasks);
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Görevler');
-
-    // Kolon genişlikleri
-    ws['!cols'] = [
-        { wch: 15 }, // Seri No
-        { wch: 25 }, // Görev İsmi
-        { wch: 12 }, // Tarih
-        { wch: 25 }, // Kategori
-        { wch: 20 }, // Lokasyon
-        { wch: 8 },  // Kat
-        { wch: 40 }, // Açıklama
-        { wch: 22 }, // Önem
-        { wch: 15 }, // Durum
-        { wch: 20 }, // Denetçi
-        { wch: 20 }, // Görevli
-        { wch: 12 }, // Son Tarih
-        { wch: 15 }, // Oluşturma Tarihi
-        { wch: 15 }, // Tamamlanma Tarihi
+    const headers = Object.keys(data[0] ?? {}) as Array<keyof ExportTask>;
+    const widths = [15, 25, 12, 25, 20, 8, 40, 22, 15, 20, 20, 12, 15, 15];
+    const sheetData = [
+        headers.map((header) => ({
+            value: header,
+            fontWeight: 'bold' as const,
+            backgroundColor: '#E2E8F0',
+        })),
+        ...data.map((row) => headers.map((header) => ({
+            value: row[header],
+            type: String,
+            wrap: header === 'Açıklama',
+        }))),
     ];
 
-    XLSX.writeFile(wb, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    // Tarayıcı paketini yalnızca kullanıcı Excel indirdiğinde yükle.
+    const { default: writeExcelFile } = await import('write-excel-file/browser');
+    await writeExcelFile(sheetData, {
+        sheet: 'Görevler',
+        columns: widths.map((width) => ({ width })),
+        stickyRowsCount: 1,
+    }).toFile(`${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 export function exportToCsv(tasks: Task[], filename = 'gorevler'): void {
     const data = transformTasksForExport(tasks);
-    const csv = Papa.unparse(data);
+    const csv = Papa.unparse(data, { escapeFormulae: true });
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

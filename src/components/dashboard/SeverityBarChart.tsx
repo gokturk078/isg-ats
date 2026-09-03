@@ -34,11 +34,10 @@ export function SeverityBarChart({ data }: SeverityBarChartProps) {
                                     border: '1px solid hsl(var(--border))',
                                     backgroundColor: 'hsl(var(--background))',
                                 }}
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                formatter={((value: any, name: any) => [
+                                formatter={(value, name) => [
                                     value ?? 0,
                                     name === 'total_count' ? 'Toplam' : 'Kapatılan',
-                                ]) as any}
+                                ]}
                             />
                             <Bar dataKey="total_count" name="Toplam" radius={[4, 4, 0, 0]}>
                                 {chartData.map((entry, index) => (

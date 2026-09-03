@@ -29,7 +29,7 @@ export default function ResetPasswordPage() {
     const onSubmit = async (data: ResetPasswordInput) => {
         setError('');
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(data.email, {
-            redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+            redirectTo: `${window.location.origin}/auth/callback?next=/set-password`,
         });
 
         if (resetError) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ClipboardList, AlertTriangle, CheckCircle, Clock, TrendingUp, CalendarDays } from 'lucide-react';
+import { ClipboardList, AlertTriangle, Clock, CalendarDays } from 'lucide-react';
 import type { TaskStatistics } from '@/types';
 
 interface StatsCardsProps {

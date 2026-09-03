@@ -20,6 +20,7 @@ export function useTask(id: string) {
           location:locations!tasks_location_id_fkey(*),
           category:task_categories!tasks_category_id_fkey(*),
           photos:task_photos(*),
+          attachments:task_attachments(*),
           actions:task_actions(
             *,
             user:profiles(id, full_name, email, avatar_url, role)
